@@ -51,7 +51,7 @@
     </form>
 	<script type="text/javascript">
         var container = document.getElementById("editArea");
-        var editor = new JSONEditor(container,{change: getJSON},YAML.decode(document.getElementById('config').value));
+        var editor = new JSONEditor(container,{change: getJSON, rootNodeName: '{{ name }}'},YAML.decode(document.getElementById('config').value));
         function getJSON() {
 			var json = editor.get();
 			document.getElementById('config').value = YAML.encode(json,200)
