@@ -1,7 +1,7 @@
 from __future__ import unicode_literals, division, absolute_import
 from flexget.ui.webui import manager, register_plugin, app
 from flexget.task import Task
-from flask import render_template, request, flash, redirect, Module
+from flask import render_template, request, flash, redirect, Module, send_from_directory, jsonify
 import yaml
 import logging
 from flask.helpers import url_for
@@ -9,6 +9,18 @@ from flask.helpers import url_for
 configure = Module(__name__, url_prefix='/configure')
 
 log = logging.getLogger('ui.configure')
+
+
+@configure.route('/exp/<path:path>')
+def editor(path):
+    return send_from_directory('c:\\users/chase.sterling/PycharmProjects/flexget/flexget/ui/plugins/configure/jsonary/', path)
+
+
+@configure.route('/c/tasks/<taskname>')
+def get_task(taskname):
+    r = jsonify(manager.config["tasks"][taskname])
+    r.headers[b'Content-Type'] = 'application/json; profile=/schema/plugins'
+    return r
 
 
 @configure.route('/')
