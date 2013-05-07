@@ -2,6 +2,8 @@ from __future__ import unicode_literals, division, absolute_import
 import logging
 import posixpath
 from fnmatch import fnmatch
+
+from flexget.config_schema import one_or_more
 from flexget.plugin import register_plugin, priority
 
 log = logging.getLogger('content_filter')
@@ -19,21 +21,20 @@ class FilterContentFilter(object):
           - '*.mkv'
     """
 
-    def validator(self):
-        from flexget import validator
-        config = validator.factory('dict')
-        config.accept('text', key='require')
-        config.accept('list', key='require').accept('text')
-        config.accept('text', key='require_all')
-        config.accept('list', key='require_all').accept('text')
-        config.accept('text', key='reject')
-        config.accept('list', key='reject').accept('text')
-        config.accept('boolean', key='strict')
-        return config
+    schema = {
+        "type": "object",
+        "properties": {
+            # These two properties allow a string or list of strings
+            "require": one_or_more({"type": "string"}),
+            "reject": one_or_more({"type": "string"}),
+            "strict": {"type": "boolean", "default": False}
+        },
+        "additionalProperties": False
+    }
 
     def get_config(self, task):
         config = task.config.get('content_filter')
-        for key in ['require', 'require_all', 'reject']:
+        for key in ['require', 'reject']:
             if key in config:
                 if isinstance(config[key], basestring):
                     config[key] = [config[key]]
@@ -67,18 +68,6 @@ class FilterContentFilter(object):
                     log.info('Entry %s does not have any of the required filetypes, rejecting' % entry['title'])
                     entry.reject('does not have any of the required filetypes', remember=True)
                     return True
-            if config.get('require_all'):
-                matches = 0
-                for file in files:
-                    for mask in config['require_all']:
-                        if fnmatch(file, mask):
-                            matches += 1
-
-                # if all masks didn't match, reject the entry
-                if matches != len(config['require_all']):
-                    log.info('Entry %s does not have all of the required filetypes, rejecting' % entry['title'])
-                    entry.reject('does not have all of the required filetypes', remember=True)
-                    return True
             if config.get('reject'):
                 mask = matching_mask(files, config['reject'])
                 if mask:
@@ -90,7 +79,6 @@ class FilterContentFilter(object):
         if 'torrent' in entry:
             files = [posixpath.join(item['path'], item['name']) for item in entry['torrent'].get_filelist()]
             if files:
-                # TODO: should not add this to entry, this is a filter plugin
                 entry['content_files'] = files
 
     @priority(150)
@@ -106,7 +94,7 @@ class FilterContentFilter(object):
             self.parse_torrent_files(entry)
             if self.process_entry(task, entry):
                 task.rerun()
-            elif not 'content_files' in entry and config.get('strict'):
+            elif not 'content_files' in entry and config['strict']:
                 entry.reject('no content files parsed for entry', remember=True)
                 task.rerun()
 

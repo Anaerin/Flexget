@@ -1,26 +1,12 @@
 from __future__ import unicode_literals, division, absolute_import
 from datetime import datetime
 import logging
-
 from sqlalchemy import Column, Integer, Boolean, String, Unicode, DateTime
-
-from flexget import schema
+from flexget.db_schema import versioned_base
 from flexget.plugin import priority
-from flexget.utils.sqlalchemy_utils import table_add_column
 
 log = logging.getLogger('queue')
-Base = schema.versioned_base('queue', 2)
-
-
-@schema.upgrade('queue')
-def upgrade(ver, session):
-    if False:  # ver == 0: disable this, since we don't have a remove column function
-        table_add_column('queue', 'last_emit', DateTime, session)
-        ver = 1
-    if ver < 2:
-        # We don't have a remove column for 'last_emit', do nothing
-        ver = 2
-    return ver
+Base = versioned_base('queue', 0)
 
 
 class QueuedItem(Base):
@@ -46,14 +32,11 @@ class QueuedItem(Base):
 class FilterQueueBase(object):
     """Base class to handle general tasks of keeping a queue of wanted items."""
 
+    schema = {'type': 'boolean'}
+
     def on_task_start(self, task, config):
         # Dict of entries accepted by this plugin {imdb_id: entry} format
         self.accepted_entries = {}
-
-    def validator(self):
-        """Default validator just accepts a boolean, can be overridden by subclasses"""
-        from flexget import validator
-        return validator.factory('boolean')
 
     def matches(self, task, config, entry):
         """This should return the QueueItem object for the match, if this entry is in the queue."""
