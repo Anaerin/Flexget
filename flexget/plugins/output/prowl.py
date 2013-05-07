@@ -1,9 +1,12 @@
-__version__ = 0.1
-
+from __future__ import unicode_literals, division, absolute_import
 import logging
+
 from requests import RequestException
-from flexget.plugin import register_plugin
+
+from flexget.plugin import register_plugin, priority
 from flexget.utils.template import RenderError
+
+__version__ = 0.1
 
 log = logging.getLogger('prowl')
 
@@ -45,6 +48,8 @@ class OutputProwl(object):
         config.setdefault('priority', 0)
         return config
 
+    # Run last to make sure other outputs are successful before sending notification
+    @priority(0)
     def on_task_output(self, task, config):
         config = self.prepare_config(config)
         for entry in task.accepted:
@@ -60,10 +65,16 @@ class OutputProwl(object):
             priority = entry.get('priority', config['priority'])
             description = config.get('description', entry['title'])
 
+            # If event has jinja template, render it
+            try:
+                event = entry.render(event)
+            except RenderError as e:
+                log.error('Error rendering jinja event: %s' % e)
+
             # If description has jinja template, render it
             try:
                 description = entry.render(description)
-            except RenderError, e:
+            except RenderError as e:
                 description = entry['title']
                 log.error('Error rendering jinja description: %s' % e)
 
@@ -72,7 +83,7 @@ class OutputProwl(object):
                     'event': event, 'description': description}
             try:
                 response = task.requests.post(url, headers=headers, data=data, raise_status=False)
-            except RequestException, e:
+            except RequestException as e:
                 log.error('Error with request: %s' % e)
                 continue
 

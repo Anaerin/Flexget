@@ -8,6 +8,7 @@ forget (string)
     title will be forgotten. With field value only that particular field is forgotten.
 """
 
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, DateTime, Unicode, Boolean, asc, or_, select, update, Index
@@ -218,7 +219,7 @@ class SeenSearch(object):
         shown = []
         for field in session.query(SeenField).\
             filter(SeenField.value.like(unicode('%' + task.manager.options.seen_search + '%'))).\
-            order_by(asc(SeenField.added)).all():
+                order_by(asc(SeenField.added)).all():
 
             se = session.query(SeenEntry).filter(SeenEntry.id == field.seen_entry_id).first()
             if not se:
@@ -335,7 +336,7 @@ class FilterSeen(object):
                 found = found.first()
                 if found:
                     log.debug("Rejecting '%s' '%s' because of seen '%s'" % (entry['url'], entry['title'], found.value))
-                    task.reject(entry, 'Entry with %s `%s` is already seen' % (found.field, found.value),
+                    entry.reject('Entry with %s `%s` is already seen' % (found.field, found.value),
                                 remember=remember_rejected)
 
     def on_task_exit(self, task, config):

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, PluginWarning, PluginError, get_plugin_by_name
 from bs4 import BeautifulSoup
@@ -92,7 +93,7 @@ class FilterImdbRated(object):
             imdb_url = 'http://www.imdb.com%s' % a_imdb_link.get('href')
 
             if not task.session.query(ImdbRated).filter(ImdbRated.url == config['url']).\
-                                                 filter(ImdbRated.imdb_url == imdb_url).first():
+                    filter(ImdbRated.imdb_url == imdb_url).first():
                 rated = ImdbRated(config['url'], imdb_url)
                 task.session.add(rated)
                 log.debug('adding %s' % rated)
@@ -123,17 +124,17 @@ class FilterImdbRated(object):
                 continue
 
             is_rated = task.session.query(ImdbRated).\
-                       filter(ImdbRated.url == config['url']).\
-                       filter(ImdbRated.imdb_url == entry['imdb_url']).first() is not None
+                filter(ImdbRated.url == config['url']).\
+                filter(ImdbRated.imdb_url == entry['imdb_url']).first() is not None
 
             if config.get('reverse', False):
                 # reversed, reject unrated
                 if not is_rated:
-                    task.reject(entry, 'imdb rated reverse')
+                    entry.reject('imdb rated reverse')
             else:
                 # normal mode, reject rated
                 if is_rated:
-                    task.reject(entry, 'imdb rated')
+                    entry.reject('imdb rated')
 
 
 register_plugin(FilterImdbRated, 'imdb_rated')

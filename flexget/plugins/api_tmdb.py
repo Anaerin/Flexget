@@ -1,16 +1,18 @@
+from __future__ import unicode_literals, division, absolute_import
 from datetime import datetime, timedelta
 import logging
 from urllib2 import URLError, quote
 import os
 import posixpath
+
 from sqlalchemy import Table, Column, Integer, Float, String, Unicode, Boolean, DateTime, func
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.orm import relation
+
 from flexget import schema
-from flexget.utils import json
 from flexget.utils.sqlalchemy_utils import table_add_column, table_schema
 from flexget.utils.titles import MovieParser
-from flexget.utils.tools import urlopener
+from flexget.utils import requests
 from flexget.utils.database import text_date_synonym, year_property, with_session
 from flexget.manager import Session
 from flexget.plugin import register_plugin
@@ -132,7 +134,7 @@ class TMDBPoster(TMDBContainer, Base):
             os.makedirs(fullpath)
         filename = os.path.join(dirname, posixpath.basename(self.url))
         thefile = file(os.path.join(base_dir, filename), 'wb')
-        thefile.write(urlopener(self.url, log).read())
+        thefile.write(requests.get(self.url).content)
         self.file = filename
         # If we are detached from a session, update the db
         if not Session.object_session(self):
@@ -211,7 +213,7 @@ class ApiTmdb(object):
             movie = movie_filter.first()
             if not movie:
                 found = session.query(TMDBSearchResult). \
-                        filter(func.lower(TMDBSearchResult.search) == search_string).first()
+                    filter(func.lower(TMDBSearchResult.search) == search_string).first()
                 if found and found.movie:
                     movie = found.movie
         if movie:
@@ -309,16 +311,18 @@ class ApiTmdb(object):
 
 
 def get_first_result(tmdb_function, value):
+    if isinstance(value, unicode):
+        value = value.encode('utf-8')
     if isinstance(value, basestring):
-        value = quote(value.encode('utf-8'), safe='')
+        value = quote(value, safe=b'')
     url = '%s/2.1/Movie.%s/%s/json/%s/%s' % (server, tmdb_function, lang, api_key, value)
     try:
-        data = urlopener(url, log)
-    except URLError:
+        data = requests.get(url)
+    except requests.RequestException:
         log.warning('Request failed %s' % url)
         return
     try:
-        result = json.load(data)
+        result = data.json()
     except ValueError:
         log.warning('TMDb returned invalid json.')
         return

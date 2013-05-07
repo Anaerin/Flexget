@@ -1,10 +1,10 @@
+from __future__ import unicode_literals, division, absolute_import
 import subprocess
 import logging
-import re
 import sys
 from UserDict import UserDict
 from flexget.plugin import register_plugin, phase_methods
-from flexget.utils.template import render_from_entry, RenderError
+from flexget.utils.template import render_from_entry, render_from_task, RenderError
 
 log = logging.getLogger('exec')
 
@@ -114,12 +114,11 @@ class PluginExec(object):
                 # Do string replacement from entry, but make sure quotes get escaped
                 try:
                     cmd = render_from_entry(cmd, entrydict)
-                except RenderError, e:
+                except RenderError as e:
                     log.error('Could not set exec command for %s: %s' % (entry['title'], e))
                     # fail the entry if configured to do so
                     if config.get('fail_entries'):
-                        task.fail(entry, 'Entry `%s` does not have required fields for string replacement.' %
-                                         entry['title'])
+                        entry.fail('Entry `%s` does not have required fields for string replacement.' % entry['title'])
                     continue
 
                 log.debug('phase_name: %s operation: %s cmd: %s' % (phase_name, operation, cmd))
@@ -133,20 +132,25 @@ class PluginExec(object):
                     except UnicodeEncodeError:
                         log.error('Unable to encode cmd `%s` to %s' % (cmd, config['encoding']))
                         if config.get('fail_entries'):
-                            task.fail(entry, 'cmd `%s` could not be encoded to %s.' % (cmd, config['encoding']))
+                            entry.fail('cmd `%s` could not be encoded to %s.' % (cmd, config['encoding']))
                         continue
                     # Run the command, fail entries with non-zero return code if configured to
                     if self.execute_cmd(cmd, allow_background, config['encoding']) != 0 and config.get('fail_entries'):
-                        task.fail(entry, 'exec return code was non-zero')
+                        entry.fail('exec return code was non-zero')
 
         # phase keyword in this
         if 'phase' in config[phase_name]:
             cmd = config[phase_name]['phase']
-            log.debug('phase cmd: %s' % cmd)
-            if task.manager.options.test:
-                log.info('Would execute: %s' % cmd)
+            try:
+                cmd = render_from_task(cmd, task)
+            except RenderError as e:
+                log.error('Error rendering `%s`: %s' % (cmd, e))
             else:
-                self.execute_cmd(cmd, allow_background, config['encoding'])
+                log.debug('phase cmd: %s' % cmd)
+                if task.manager.options.test:
+                    log.info('Would execute: %s' % cmd)
+                else:
+                    self.execute_cmd(cmd, allow_background, config['encoding'])
 
     def __getattr__(self, item):
         """Creates methods to handle task phases."""

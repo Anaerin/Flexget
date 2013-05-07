@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from argparse import ArgumentError, Action
 from sqlalchemy.exc import OperationalError
@@ -34,7 +35,7 @@ class MovieQueueManager(object):
             self.queue_list(task.session)
             return
 
-        # If the action was to do more than just list the series, make sure all entries are processed again next run.
+        # If the action affects make sure all entries are processed again next run.
         task.manager.config_changed()
 
         if options['action'] == 'downloaded':
@@ -47,52 +48,53 @@ class MovieQueueManager(object):
 
         if options['action'] == 'del':
             try:
-                title = queue_del(options['what'])
-            except QueueError, e:
-                console(e.message)
+                what = parse_what(options['what'])
+                title = queue_del(title=what.get('title'), imdb_id=what.get('imdb_id'),
+                                  tmdb_id=what.get('tmdb_id'))
+            except QueueError as e:
+                console('ERROR: %s' % e.message)
             else:
                 console('Removed %s from queue' % title)
             return
 
         if options['action'] == 'forget':
             try:
-                title = queue_forget(options['what'])
-            except QueueError, e:
-                console(e.message)
+                what = parse_what(options['what'])
+                title = queue_forget(title=what.get('title'), imdb_id=what.get('imdb_id'),
+                                     tmdb_id=what.get('tmdb_id'))
+            except QueueError as e:
+                console('ERROR: %s' % e.message)
             else:
-                console('Marked %s as undownloaded' % title)
+                console('Forgot that %s was downloaded. Movie will be downloaded again.' % title)
             return
 
-        # Adding to queue requires a lookup for missing information
-        try:
-            what = parse_what(options['what'])
-            options.update(what)
-        except QueueError, e:
-            console(e.message)
+        if options['action'] == 'add':
+            # Adding to queue requires a lookup for missing information
+            what = {}
+            try:
+                what = parse_what(options['what'])
+            except QueueError as e:
+                console('ERROR: %s' % e.message)
 
-        if not options.get('title') or not (options.get('imdb_id') or options.get('tmdb_id')):
-            console('could not determine movie')  # TODO: Rethink errors
-            return
+            if not what.get('title') or not (what.get('imdb_id') or what.get('tmdb_id')):
+                console('could not determine movie')  # TODO: Rethink errors
+                return
 
-        try:
-            if options['action'] == 'add':
-                try:
-                    added = queue_add(title=options['title'], imdb_id=options['imdb_id'],
-                        tmdb_id=options['tmdb_id'], quality=options['quality'], force=options['force'])
-                except QueueError, e:
-                    console(e.message)
-                    if e.errno == 1:
-                        # This is an invalid quality error, display some more info
-                        # TODO: Fix this error?
-                        #console('Recognized qualities are %s' % ', '.join([qual.name for qual in qualities.all()]))
-                        console('ANY is the default and can also be used explicitly to specify that quality should be ignored.')
-                else:
-                    console('Added %s to queue with quality %s' % (added['title'], added['quality']))
-        except OperationalError:
-            log.critical('OperationalError')
+            try:
+                added = queue_add(title=what['title'], imdb_id=what['imdb_id'],
+                                  tmdb_id=what['tmdb_id'], quality=options['quality'], force=options['force'])
+            except QueueError as e:
+                console(e.message)
+                if e.errno == 1:
+                    # This is an invalid quality error, display some more info
+                    # TODO: Fix this error?
+                    #console('Recognized qualities are %s' % ', '.join([qual.name for qual in qualities.all()]))
+                    console('ANY is the default and can also be used explicitly to specify that quality should be ignored.')
+            except OperationalError:
+                log.critical('OperationalError')
 
     def queue_list(self, session, downloaded=False):
-        """List IMDb queue"""
+        """List movie queue"""
 
         items = queue_get(session=session, downloaded=downloaded)
         console('-' * 79)
@@ -114,12 +116,13 @@ class MovieQueueManager(object):
         console('-' * 79)
         for item in items:
             console(item.title)
-            queue_del(item.imdb_id)
+            queue_del(title=item.title)
 
         if not items:
             console('No results')
 
         console('-' * 79)
+
 
 class MovieQueueAction(Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -145,9 +148,9 @@ class MovieQueueAction(Action):
         if len(values) >= 3:
             try:
                 options['quality'] = qualities.Requirements(values[2])
-            except ValueError, e:
+            except ValueError as e:
                 raise ArgumentError(self, '`%s` is an invalid quality requirement string: %s' %
-                                       (values[2], e.message))
+                                    (values[2], e.message))
         else:
             options['quality'] = qualities.Requirements('any')
             # TODO: Get default from config somehow?

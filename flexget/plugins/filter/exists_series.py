@@ -1,8 +1,9 @@
+from __future__ import unicode_literals, division, absolute_import
 import copy
 import os
 import logging
 from flexget.plugin import register_plugin, priority, PluginWarning
-from flexget.utils.titles import SeriesParser, ParseWarning
+from flexget.utils.titles import ParseWarning
 
 log = logging.getLogger('exists_series')
 
@@ -76,7 +77,7 @@ class FilterExistsSeries(object):
                         disk_parser.data = name
                         try:
                             disk_parser.parse(data=name)
-                        except ParseWarning, pw:
+                        except ParseWarning as pw:
                             from flexget.utils.log import log_once
                             log_once(pw.value, logger=log)
                         if disk_parser.valid:
@@ -101,12 +102,10 @@ class FilterExistsSeries(object):
                                         continue
                                 log.debug('entry parser.proper_count = %s' % entry['series_parser'].proper_count)
                                 if disk_parser.proper_count >= entry['series_parser'].proper_count:
-                                    task.reject(entry, 'proper already exists')
+                                    entry.reject('proper already exists')
                                     continue
                                 else:
                                     log.trace('new one is better proper, allowing')
                                     continue
-
-                                task.reject(entry, 'episode already exists')
 
 register_plugin(FilterExistsSeries, 'exists_series', groups=['exists'])

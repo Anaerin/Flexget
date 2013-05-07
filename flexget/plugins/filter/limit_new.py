@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, priority, DependencyError, get_plugin_by_name
 
@@ -43,7 +44,7 @@ class FilterLimitNew(object):
             if index < amount:
                 log.verbose('Allowed %s (%s)' % (entry['title'], entry['url']))
             else:
-                task.reject(entry, 'limit exceeded')
+                entry.reject('limit exceeded')
                 # Also save this in backlog so that it can be accepted next time.
                 if self.backlog:
                     self.backlog.add_backlog(task, entry)

@@ -1,4 +1,5 @@
-from flexget.utils.titles import MovieParser, ParseWarning
+from __future__ import unicode_literals, division, absolute_import
+from flexget.utils.titles import MovieParser
 
 
 class TestMovieParser:
@@ -39,6 +40,11 @@ class TestMovieParser:
         movie = self.parse('TRON.Legacy.3D.2010.1080p.BluRay.Half.Over-Under.DTS.x264-FlexGet')
         assert movie.name == 'TRON Legacy', 'failed to parse %s' % movie.data
 
-        movie = self.parse(u'[REC]\xb3 G\xe9nesis.2012.720p.x264-FlexGet'.encode('utf-8'))
-        assert movie.name == u'REC \xb3 G\xe9nesis'.encode('utf-8'), 'failed to parse %s (got %s)' % (movie.data, movie.name)
-        assert movie.year == 2012, 'failed to parse year from %s' % movie.data
+        movie = self.parse('[SomeThing]Up.2009.720p.x264-FlexGet')
+        assert movie.name == 'Up', 'failed to parse %s (got %s)' % (movie.data, movie.name)
+        assert movie.year == 2009, 'failed to parse year from %s' % movie.data
+
+        movie = self.parse('[720p] A.Movie.Title.2013.otherstuff.x264')
+        assert movie.name == 'A Movie Title', 'failed to parse %s (got %s)' % (movie.data, movie.name)
+        assert movie.year == 2013, 'failed to parse year from %s' % movie.data
+        assert movie.quality.name == '720p h264'

@@ -3,11 +3,11 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to FlexGet's documentation!
-===================================
+FlexGet's documentation!
+========================
 
-The core section is most relevant for developers. Plugins documentation
-section may miss some plugins since each plugin must be manually added to the .rst files.
+This documentation contains developer guide, technical core documentation and relevant plugin documentation that
+is relevant to the developers wishing to extend FlexGet.
 
 **Indices and tables**
 
@@ -15,8 +15,22 @@ section may miss some plugins since each plugin must be manually added to the .r
 * :ref:`modindex`
 * :ref:`search`
 
+
+Instructions for aspiring developer
+-----------------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   develop/index
+   develop/mock
+   develop/tdd
+
+
 Core documentation
 ------------------
+
+Describe FlexGet framework.
 
 .. toctree::
    :maxdepth: 4
@@ -25,6 +39,8 @@ Core documentation
 
 Plugins
 -------
+
+This list is not up-to-date and should probably only contain plugins that serve API to other plugins.
 
 .. toctree::
    :maxdepth: 2

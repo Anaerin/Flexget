@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.entry import Entry
 from flexget.plugin import register_plugin, DependencyError
@@ -6,7 +7,7 @@ log = logging.getLogger('emit_series')
 
 try:
     from flexget.plugins.filter.series import Series, Episode, SeriesDatabase
-except ImportError, e:
+except ImportError as e:
     log.error(e.message)
     raise DependencyError(issued_by='emit_series', missing='series')
 
@@ -25,7 +26,7 @@ class EmitSeries(SeriesDatabase):
     def on_task_input(self, task, config):
         entries = []
         for series in task.session.query(Series).all():
-            latest = self.get_latest_info(task.session, series.name)
+            latest = self.get_latest_info(series)
             if not latest:
                 # no latest known episode, skip
                 continue

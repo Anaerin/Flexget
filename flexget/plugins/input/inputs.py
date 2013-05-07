@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, add_plugin_validators, get_plugin_by_name, PluginError
 
@@ -35,12 +36,12 @@ class PluginInputs(object):
                 method = input.phase_handlers['input']
                 try:
                     result = method(task, input_config)
-                except PluginError, e:
+                except PluginError as e:
                     log.warning('Error during input plugin %s: %s' % (input_name, e))
                     continue
                 if not result:
                     msg = 'Input %s did not return anything' % input_name
-                    if task.no_entries_ok:
+                    if getattr(task, 'no_entries_ok', False):
                         log.verbose(msg)
                     else:
                         log.warning(msg)

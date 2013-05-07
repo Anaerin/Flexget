@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import re
 import copy
 import logging
@@ -118,7 +119,7 @@ _resolutions = [
     QualityComponent('resolution', 40, '576p', '576p?'),
     QualityComponent('resolution', 45, 'hr'),
     QualityComponent('resolution', 50, '720i'),
-    QualityComponent('resolution', 60, '720p', '(1280x)?720p?'),
+    QualityComponent('resolution', 60, '720p', '(1280x)?720p?x?'),
     QualityComponent('resolution', 70, '1080i'),
     QualityComponent('resolution', 80, '1080p', '(1920x)?1080p?')
 ]
@@ -133,8 +134,8 @@ _sources = [
     QualityComponent('source', 80, 'preair', modifier=-1),
     QualityComponent('source', 90, 'tvrip', 'tv[\W_]?rip'),
     QualityComponent('source', 100, 'dsr', 'dsr|ds[\W_]?rip'),
-    QualityComponent('source', 110, 'webrip', 'web[\W_]?rip'),
-    QualityComponent('source', 120, 'sdtv', '(?:[sp]dtv|dvb)(?:[\W_]?rip)?'),
+    QualityComponent('source', 110, 'sdtv', '(?:[sp]dtv|dvb)(?:[\W_]?rip)?'),
+    QualityComponent('source', 120, 'webrip', 'web[\W_]?rip'),
     QualityComponent('source', 130, 'dvdscr', '(?:(?:dvd|web)[\W_]?)?scr(?:eener)?', modifier=0),
     QualityComponent('source', 140, 'bdscr', 'bdscr(?:eener)?'),
     QualityComponent('source', 150, 'hdtv', 'a?hdtv(?:[\W_]?rip)?',),
@@ -151,7 +152,7 @@ _codecs = [
 channels = '(?:(?:[\W_]?5[\W_]?1)|(?:[\W_]?2[\W_]?(?:0|ch)))'
 _audios = [
     QualityComponent('audio', 10, 'mp3'),
-    #TODO: No idea what order these should go in or if we need different regexps
+    # TODO: No idea what order these should go in or if we need different regexps
     QualityComponent('audio', 20, 'dd5.1', 'dd%s' % channels),
     QualityComponent('audio', 30, 'aac', 'aac%s?' % channels),
     QualityComponent('audio', 40, 'ac3', 'ac3%s?' % channels),
@@ -176,8 +177,8 @@ _UNKNOWNS = {
 
 
 _registry = {}
-for type in (_resolutions, _sources, _codecs, _audios):
-    for item in type:
+for items in (_resolutions, _sources, _codecs, _audios):
+    for item in items:
         _registry[item.name] = item
 
 
@@ -433,7 +434,7 @@ class Requirements(object):
                 for component in self.components:
                     if found.type == component.type:
                         component.add_requirement(part)
-        except KeyError, e:
+        except KeyError as e:
             raise ValueError('%s is not a valid quality component.' % e.message)
 
     def allows(self, qual, loose=False):

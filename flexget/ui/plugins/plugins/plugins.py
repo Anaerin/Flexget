@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 from flask import Module, jsonify
 from flexget.ui.webui import register_plugin
 from flexget.plugin import plugins, get_plugins, task_phases, get_plugin_by_name, DependencyError, plugin_contexts
@@ -12,6 +13,7 @@ def plugin_infos(plugins):
                 'category': plugin.category}
 
     return dict((p.name, plugin_info(p)) for p in plugins)
+
 
 # JSON API
 @plugins_module.route('/all')
@@ -28,7 +30,7 @@ def phases():
 def plugins_by_phase(phase):
     try:
         return jsonify(plugins=plugin_infos(get_plugins(phase=phase)))
-    except Exception, e:
+    except Exception as e:
         return e.message, 404
 
 

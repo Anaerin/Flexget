@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from __future__ import unicode_literals, division, absolute_import
 import os
 import sys
 import flexget.logger
@@ -47,9 +48,9 @@ class MockManager(Manager):
 
     def __init__(self, config_text, config_name, db_uri=None):
         self.config_text = config_text
-        self.config_name = config_name
         self._db_uri = db_uri or 'sqlite:///:memory:'
         super(MockManager, self).__init__(test_arguments)
+        self.config_name = config_name
 
     def initialize(self):
         self.database_uri = self._db_uri
@@ -89,6 +90,7 @@ class FlexGetBase(object):
     __tmp__ = False
 
     def __init__(self):
+        self.log = log
         self.manager = None
         self.task = None
         self.database_uri = None

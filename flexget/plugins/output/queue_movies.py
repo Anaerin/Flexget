@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.utils import qualities
 from flexget.plugin import register_plugin, get_plugin_by_name, DependencyError
@@ -61,8 +62,8 @@ class QueueMovies(object):
             log.debug('queueing kwargs: %s' % kwargs)
             try:
                 queue_add(**kwargs)
-            except QueueError, e:
-                task.fail(entry, 'Error adding movie to queue: %s' % e.message)
+            except QueueError as e:
+                entry.fail('Error adding movie to queue: %s' % e.message)
 
 
 register_plugin(QueueMovies, 'queue_movies', api_ver=2)

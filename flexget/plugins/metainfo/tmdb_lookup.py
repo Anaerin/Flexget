@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, DependencyError
 from flexget.utils import imdb
@@ -48,13 +49,13 @@ class PluginTmdbLookup(object):
     def lazy_loader(self, entry, field):
         """Does the lookup for this entry and populates the entry fields."""
         imdb_id = entry.get('imdb_id', eval_lazy=False) or \
-                  imdb.extract_id(entry.get('imdb_url', eval_lazy=False))
+            imdb.extract_id(entry.get('imdb_url', eval_lazy=False))
         try:
             movie = lookup(smart_match=entry['title'],
                            tmdb_id=entry.get('tmdb_id', eval_lazy=False),
                            imdb_id=imdb_id)
             entry.update_using_map(self.field_map, movie)
-        except LookupError, e:
+        except LookupError as e:
             log.debug(u'Tmdb lookup for %s failed: %s' % (entry['title'], e.message))
             # Set all of our fields to None if the lookup failed
             entry.unregister_lazy_fields(self.field_map, self.lazy_loader)

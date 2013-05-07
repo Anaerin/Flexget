@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import os
 import stat
 from tests import FlexGetBase
@@ -157,7 +158,7 @@ class TestEntryUnicodeError(object):
     @raises(EntryUnicodeError)
     def test_encoding(self):
         e = Entry('title', 'url')
-        e['invalid'] = '\x8e'
+        e['invalid'] = b'\x8e'
 
 
 class TestFilterRequireField(FlexGetBase):
@@ -211,6 +212,9 @@ class TestHtmlUtils(object):
 class TestSetPlugin(FlexGetBase):
 
     __yaml__ = """
+        presets:
+          global:
+            accept_all: yes
         tasks:
           test:
             mock:

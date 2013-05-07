@@ -1,8 +1,9 @@
+from __future__ import unicode_literals, division, absolute_import
 import urllib
 import urllib2
 import logging
 import re
-from plugin_urlrewriting import UrlRewritingError
+from flexget.plugins.plugin_urlrewriting import UrlRewritingError
 from flexget.entry import Entry
 from flexget.plugin import register_plugin, PluginWarning, internet
 from flexget.utils.soup import get_soup
@@ -36,7 +37,7 @@ class NewTorrents:
            url.startswith('http://www.newtorrents.info/search')):
             try:
                 url = self.entries_from_search(entry['title'], url=url)[0]['url']
-            except PluginWarning, e:
+            except PluginWarning as e:
                 raise UrlRewritingError(e.value)
         else:
             url = self.url_from_page(url)

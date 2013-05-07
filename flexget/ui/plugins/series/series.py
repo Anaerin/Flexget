@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 from flask import redirect, render_template, Module, request, flash, url_for
 from sqlalchemy.sql.expression import desc, asc
 
@@ -91,7 +92,7 @@ def forget_episode(rel_id):
                 forget_series_episode(release.episode.series.name, release.episode.identifier)
                 flash('Forgot %s %s.' % (
                     release.episode.series.name, release.episode.identifier), 'delete')
-            except ValueError, e:
+            except ValueError as e:
                 flash(e.message, 'error')
 
         return redirect(url_for('index'))

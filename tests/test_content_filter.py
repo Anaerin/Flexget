@@ -1,4 +1,4 @@
-import shutil
+from __future__ import unicode_literals, division, absolute_import
 from tests import FlexGetBase, with_filecopy
 
 

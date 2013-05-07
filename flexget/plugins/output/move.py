@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import os
 import shutil
 import logging
@@ -88,7 +89,7 @@ class MovePlugin(object):
                 log.error('Filename value replacement `%s` failed for `%s`' % (dst_filename, entry['title']))
                 continue
             # Clean invalid characters with pathscrub plugin
-            dst_path, dst_filename = pathscrub(dst_path), pathscrub(dst_filename)
+            dst_path, dst_filename = pathscrub(dst_path), pathscrub(dst_filename, filename=True)
 
             # Join path and filename
             dst = os.path.join(dst_path, dst_filename)
@@ -115,7 +116,7 @@ class MovePlugin(object):
                 count = 0
                 while True:
                     if count > 60 * 30:
-                        task.fail(entry, 'Move has been waiting unpacking for 30 minutes')
+                        entry.fail('Move has been waiting unpacking for 30 minutes')
                         continue
                     size = os.path.getsize(src)
                     time.sleep(1)

@@ -1,5 +1,6 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
-from flexget.plugin import *
+from flexget.plugin import register_plugin
 from flexget.utils import qualities
 
 log = logging.getLogger('metainfo_quality')
@@ -42,7 +43,7 @@ class MetainfoQuality(object):
                 break
         entry['quality'] = quality
         if quality:
-            log.trace('Found quality %s (%s) for %s from field %s' % \
+            log.trace('Found quality %s (%s) for %s from field %s' %
                 (entry['quality'], quality, entry['title'], field_name))
 
 register_plugin(MetainfoQuality, 'metainfo_quality', api_ver=2, builtin=True)

@@ -1,9 +1,11 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import time
 import os
 import base64
 import re
 import sys
+
 from flexget.event import event
 from flexget.entry import Entry
 from flexget.plugin import register_plugin, PluginError, priority, get_plugin_by_name, DependencyError
@@ -22,18 +24,6 @@ if sys.platform.startswith('win') and os.environ.get('ProgramFiles'):
         for item in os.listdir(deluge_dir):
             if item.endswith(('.egg', '.zip')):
                 sys.path.append(os.path.join(deluge_dir, item))
-# Look for the deluge.app install on OSX
-elif sys.platform.startswith('darwin'):
-    filename = '/Applications/Deluge.app/Contents/Resources/site.py'
-    if not os.path.isfile(filename):
-        # Check for the .pyc also
-        filename += 'c'
-    if os.path.isfile(filename):
-        log.debug('Found deluge.app install, adding its packages to sys.path')
-        import imp
-        imp.load_source('py2app_site', filename)
-    else:
-        log.debug('Could not find deluge.app install')
 
 try:
     from twisted.python import log as twisted_log
@@ -135,9 +125,10 @@ class DelugePlugin(object):
         # This is overridden by OutputDeluge to add deluge 1.1 support
         try:
             from deluge.ui.client import client
-        except ImportError, e:
+        except ImportError as e:
             log.debug('Error importing deluge: %s' % e)
-            raise DependencyError('output_deluge', 'deluge', 'Deluge module and it\'s dependencies required. ImportError: %s' % e, log)
+            raise DependencyError('output_deluge', 'deluge',
+                                  'Deluge module and it\'s dependencies required. ImportError: %s' % e, log)
         try:
             from twisted.internet import reactor
         except:
@@ -382,7 +373,7 @@ class OutputDeluge(DelugePlugin):
                 try:
                     deluge.ui.common.TorrentInfo(entry['file'])
                 except Exception:
-                    task.fail(entry, 'Invalid torrent file')
+                    entry.fail('Invalid torrent file')
                     log.error('Torrent file appears invalid for: %s', entry['title'])
 
     @priority(135)
@@ -424,7 +415,7 @@ class OutputDeluge(DelugePlugin):
             if path:
                 try:
                     opts['download_location'] = os.path.expanduser(entry.render(path))
-                except RenderError, e:
+                except RenderError as e:
                     log.error('Could not set path for %s: %s' % (entry['title'], e))
             for fopt, dopt in self.options.iteritems():
                 value = entry.get(fopt, config.get(fopt))
@@ -435,7 +426,7 @@ class OutputDeluge(DelugePlugin):
 
             # check that file is downloaded
             if not 'file' in entry:
-                task.fail(entry, 'file missing?')
+                entry.fail('file missing?')
                 continue
 
             # see that temp file is present
@@ -443,7 +434,7 @@ class OutputDeluge(DelugePlugin):
                 tmp_path = os.path.join(task.manager.config_base, 'temp')
                 log.debug('entry: %s' % entry)
                 log.debug('temp: %s' % ', '.join(os.listdir(tmp_path)))
-                task.fail(entry, 'Downloaded temp file \'%s\' doesn\'t exist!?' % entry['file'])
+                entry.fail('Downloaded temp file \'%s\' doesn\'t exist!?' % entry['file'])
                 continue
 
             sclient.add_torrent_file([entry['file']], [opts])
@@ -461,7 +452,7 @@ class OutputDeluge(DelugePlugin):
                 if not item in before:
                     try:
                         movedone = entry.render(movedone)
-                    except RenderError, e:
+                    except RenderError as e:
                         log.error('Could not set movedone for %s: %s' % (entry['title'], e))
                         movedone = ''
                     if movedone:
@@ -484,7 +475,8 @@ class OutputDeluge(DelugePlugin):
                         sclient.queue_top([item])
                     break
             else:
-                log.info('%s is already loaded in deluge. Cannot change label, movedone, or queuetotop' % entry['title'])
+                log.info('%s is already loaded in deluge. Cannot change label, movedone, or queuetotop' %
+                         entry['title'])
 
     def on_connect_success(self, result, task, config):
         """Gets called when successfully connected to a daemon."""
@@ -589,22 +581,27 @@ class OutputDeluge(DelugePlugin):
                                 if client.is_localhost():
                                     while file_exists():
                                         # Try appending a (#) suffix till a unique filename is found
-                                        filename = ''.join([opts['content_filename'], '(', str(counter), ')', os.path.splitext(file['path'])[1]])
+                                        filename = ''.join([opts['content_filename'], '(', str(counter), ')',
+                                                            os.path.splitext(file['path'])[1]])
                                         counter += 1
                                 else:
-                                    log.debug('Cannot ensure content_filename is unique when adding to a remote deluge daemon.')
+                                    log.debug('Cannot ensure content_filename is unique '
+                                              'when adding to a remote deluge daemon.')
                                 log.debug('File %s in %s renamed to %s' % (file['path'], entry['title'], filename))
-                                main_file_dlist.append(client.core.rename_files(torrent_id, [(file['index'], filename)]))
+                                main_file_dlist.append(
+                                    client.core.rename_files(torrent_id, [(file['index'], filename)]))
                             if opts.get('main_file_only'):
                                 file_priorities = [1 if f['index'] == file['index'] else 0 for f in status['files']]
-                                main_file_dlist.append(client.core.set_torrent_file_priorities(torrent_id, file_priorities))
+                                main_file_dlist.append(
+                                    client.core.set_torrent_file_priorities(torrent_id, file_priorities))
                             break
                     else:
                         log.warning('No files in %s are > 90%% of content size, no files renamed.' % entry['title'])
 
                 return defer.DeferredList(main_file_dlist)
 
-            status_keys = ['files', 'total_size', 'save_path', 'move_on_completed_path', 'move_on_completed', 'progress']
+            status_keys = ['files', 'total_size', 'save_path', 'move_on_completed_path',
+                           'move_on_completed', 'progress']
             dlist.append(client.core.get_torrent_status(torrent_id, status_keys).addCallback(on_get_torrent_status))
 
             return defer.DeferredList(dlist)
@@ -612,7 +609,7 @@ class OutputDeluge(DelugePlugin):
         def on_fail(result, task, entry):
             """Gets called when daemon reports a failure adding the torrent."""
             log.info('%s was not added to deluge! %s' % (entry['title'], result))
-            task.fail(entry, 'Could not be added to deluge')
+            entry.fail('Could not be added to deluge')
 
         # dlist is a list of deferreds that must complete before we exit
         dlist = []
@@ -681,14 +678,11 @@ class OutputDeluge(DelugePlugin):
                         magnet = entry['url']
                     else:
                         if not os.path.exists(entry['file']):
-                            task.fail(entry, 'Downloaded temp file \'%s\' doesn\'t exist!' % entry['file'])
+                            entry.fail('Downloaded temp file \'%s\' doesn\'t exist!' % entry['file'])
                             del(entry['file'])
                             return
-                        try:
-                            f = open(entry['file'], 'rb')
+                        with open(entry['file'], 'rb') as f:
                             filedump = base64.encodestring(f.read())
-                        finally:
-                            f.close()
 
                     log.verbose('Adding %s to deluge.' % entry['title'])
                     if magnet:
@@ -702,7 +696,7 @@ class OutputDeluge(DelugePlugin):
                     path = entry.render(entry.get('path', config['path']))
                     if path:
                         add_opts['download_location'] = pathscrub(os.path.expanduser(path))
-                except RenderError, e:
+                except RenderError as e:
                     log.error('Could not set path for %s: %s' % (entry['title'], e))
                 for fopt, dopt in self.options.iteritems():
                     value = entry.get(fopt, config.get(fopt))
@@ -717,12 +711,12 @@ class OutputDeluge(DelugePlugin):
                 try:
                     movedone = entry.render(entry.get('movedone', config['movedone']))
                     modify_opts['movedone'] = pathscrub(os.path.expanduser(movedone))
-                except RenderError, e:
+                except RenderError as e:
                     log.error('Error setting movedone for %s: %s' % (entry['title'], e))
                 try:
                     content_filename = entry.get('content_filename', config.get('content_filename', ''))
                     modify_opts['content_filename'] = pathscrub(entry.render(content_filename))
-                except RenderError, e:
+                except RenderError as e:
                     log.error('Error setting content_filename for %s: %s' % (entry['title'], e))
 
                 torrent_id = entry.get('deluge_id') or entry.get('torrent_info_hash')
@@ -735,8 +729,8 @@ class OutputDeluge(DelugePlugin):
                     dlist.extend([set_torrent_options(torrent_id, entry, modify_opts),
                                   client.core.set_torrent_options([torrent_id], add_opts)])
                 else:
-                    dlist.append(add_entry(entry, add_opts).addCallbacks(set_torrent_options, on_fail,
-                            callbackArgs=(entry, modify_opts), errbackArgs=(task, entry)))
+                    dlist.append(add_entry(entry, add_opts).addCallbacks(
+                        set_torrent_options, on_fail, callbackArgs=(entry, modify_opts), errbackArgs=(task, entry)))
             return defer.DeferredList(dlist)
         dlist.append(client.core.get_session_state().addCallback(on_get_session_state))
 

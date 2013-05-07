@@ -1,9 +1,13 @@
+from __future__ import unicode_literals, division, absolute_import
+import __builtin__
 import logging
 import re
 import datetime
 from copy import copy
 from collections import defaultdict
+
 from flexget.task import Task
+from flexget.entry import Entry
 from flexget.plugin import register_plugin, plugins as all_plugins, get_plugin_by_name, phase_methods
 
 log = logging.getLogger('if')
@@ -13,7 +17,7 @@ def safer_eval(statement, locals):
     """A safer eval function. Does not allow __ or try statements, only includes certain 'safe' builtins."""
     allowed_builtins = ['True', 'False', 'str', 'unicode', 'int', 'float', 'len', 'any', 'all', 'sorted']
     for name in allowed_builtins:
-        locals[name] = globals()['__builtins__'].get(name)
+        locals[name] = getattr(__builtin__, name)
     if re.search(r'__|try\s*:|lambda', statement):
         raise ValueError('`__`, lambda or try blocks not allowed in if statements.')
     return eval(statement, {'__builtins__': None}, locals)
@@ -78,11 +82,11 @@ class FilterIf(object):
             if passed:
                 log.debug('%s matched requirement %s' % (entry['title'], condition))
             return passed
-        except NameError, e:
+        except NameError as e:
             # Extract the name that did not exist
             missing_field = e.message.split('\'')[1]
             log.debug('%s does not contain the field %s' % (entry['title'], missing_field))
-        except Exception, e:
+        except Exception as e:
             log.error('Error occurred in if statement: %r' % e)
 
     def __getattr__(self, item):
@@ -99,9 +103,9 @@ class FilterIf(object):
                 log.debug('No config dict was generated for this task.')
                 return
             entry_actions = {
-                'accept': task.accept,
-                'reject': task.reject,
-                'fail': task.fail}
+                'accept': Entry.accept,
+                'reject': Entry.reject,
+                'fail': Entry.fail}
             for item in self.task_phases[task.name][phase]:
                 requirement, action = item.items()[0]
                 passed_entries = [e for e in task.entries if self.check_condition(requirement, e)]

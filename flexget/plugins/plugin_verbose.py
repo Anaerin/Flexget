@@ -1,6 +1,7 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.utils.log import log_once
-from flexget.plugin import register_plugin, register_parser_option, priority
+from flexget.plugin import register_plugin, register_parser_option
 from flexget.task import log as task_log
 
 log = logging.getLogger('verbose')

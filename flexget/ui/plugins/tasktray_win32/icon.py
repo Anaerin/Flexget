@@ -4,6 +4,7 @@
 # Notes      : Based on (i.e. ripped off from) Mark Hammond's
 #              win32gui_taskbar.py and win32gui_menu.py demos from PyWin32
 
+from __future__ import unicode_literals, division, absolute_import
 import os
 from flexget.event import event
 from flexget.plugin import DependencyError
@@ -51,7 +52,7 @@ class SysTrayIcon(object):
         del self._next_action_id
 
         self.default_menu_index = (default_menu_index or 0)
-        self.window_class_name = window_class_name or "SysTrayIconPy"
+        self.window_class_name = window_class_name or b"SysTrayIconPy"
 
         message_map = {win32gui.RegisterWindowMessage("TaskbarCreated"): self.restart,
                        win32con.WM_DESTROY: self.destroy,

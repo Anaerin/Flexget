@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import os
 import logging
 from flexget.plugin import register_plugin, priority, PluginError, get_plugin_by_name
@@ -101,7 +102,7 @@ class FilterExistsMovie(object):
                         if imdb_id is not None:
                             log.trace('adding: %s' % imdb_id)
                             path_ids.append(imdb_id)
-                    except PluginError, e:
+                    except PluginError as e:
                         log.trace('%s lookup failed (%s)' % (item, e.value))
                         incompatible_dirs += 1
 
@@ -117,14 +118,14 @@ class FilterExistsMovie(object):
             if not entry.get('imdb_id', eval_lazy=False):
                 try:
                     imdb_lookup.lookup(entry)
-                except PluginError, e:
+                except PluginError as e:
                     log.trace('entry %s imdb failed (%s)' % (entry['title'], e.value))
                     incompatible_entries += 1
                     continue
 
             # actual filtering
             if entry['imdb_id'] in imdb_ids:
-                task.reject(entry, 'movie exists')
+                entry.reject('movie exists')
 
         if incompatible_dirs or incompatible_entries:
             log.verbose('There were some incompatible items. %s of %s entries '

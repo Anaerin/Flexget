@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, get_plugin_by_name, PluginError, priority
 from flexget.utils.log import log_once
@@ -93,7 +94,7 @@ class FilterRottenTomatoes(object):
 
             try:
                 lookup(entry)
-            except PluginError, e:
+            except PluginError as e:
                 # logs skip message once through log_once (info) and then only when ran from cmd line (w/o --cron)
                 msg = 'Skipping %s because of an error: %s' % (entry['title'], e.value)
                 if not log_once(msg, logger=log):
@@ -194,6 +195,6 @@ class FilterRottenTomatoes(object):
                         log.info(msg)
             else:
                 log.debug('Accepting %s' % (entry['title']))
-                task.accept(entry)
+                entry.accept()
 
 register_plugin(FilterRottenTomatoes, 'rottentomatoes', api_ver=2)

@@ -1,8 +1,11 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from datetime import datetime, timedelta
-from sqlalchemy import Table, Column, Integer, Float, String, Unicode, Boolean, DateTime
+
+from sqlalchemy import Table, Column, Integer, Float, String, Unicode, Boolean, DateTime, delete
 from sqlalchemy.schema import ForeignKey, Index
 from sqlalchemy.orm import relation, joinedload_all
+
 from flexget import schema
 from flexget.entry import Entry
 from flexget.plugin import register_plugin, internet, PluginError, priority
@@ -11,9 +14,9 @@ from flexget.utils.log import log_once
 from flexget.utils.imdb import ImdbSearch, ImdbParser, extract_id, make_url
 from flexget.utils.sqlalchemy_utils import table_add_column
 from flexget.utils.database import with_session
-from flexget.utils.sqlalchemy_utils import table_columns, get_index_by_name
+from flexget.utils.sqlalchemy_utils import table_columns, get_index_by_name, table_schema
 
-SCHEMA_VER = 2
+SCHEMA_VER = 4
 
 Base = schema.versioned_base('imdb_lookup', SCHEMA_VER)
 
@@ -41,6 +44,7 @@ class Movie(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(Unicode)
+    original_title = Column(Unicode)
     url = Column(String, index=True)
 
     # many-to-many relations
@@ -154,6 +158,7 @@ class SearchResult(Base):
     title = Column(Unicode, index=True)
     url = Column(String)
     fails = Column(Boolean, default=False)
+    queried = Column(DateTime)
 
     @property
     def imdb_id(self):
@@ -162,6 +167,7 @@ class SearchResult(Base):
     def __init__(self, title, url=None):
         self.title = title
         self.url = url
+        self.queried = datetime.now()
 
     def __repr__(self):
         return '<SearchResult(title=%s,url=%s,fails=%s)>' % (self.title, self.url, self.fails)
@@ -201,6 +207,16 @@ def upgrade(ver, session):
         log.info('Adding prominence column to imdb_movie_languages table.')
         table_add_column('imdb_movie_languages', 'prominence', Integer, session)
         ver = 2
+    if ver == 2:
+        log.info('Adding search result timestamp and clearing all previous results.')
+        table_add_column('imdb_search', 'queried', DateTime, session)
+        search_table = table_schema('imdb_search', session)
+        session.execute(delete(search_table, search_table.c.fails))
+        ver = 3
+    if ver == 3:
+        log.info('Adding original title column, cached data will not have this information')
+        table_add_column('imdb_movies', 'original_title', Unicode, session)
+        ver = 4
     return ver
 
 
@@ -219,6 +235,7 @@ class ImdbLookup(object):
         'imdb_url': 'url',
         'imdb_id': lambda movie: extract_id(movie.url),
         'imdb_name': 'title',
+        'imdb_original_name': 'original_title',
         'imdb_photo': 'photo',
         'imdb_plot_outline': 'plot_outline',
         'imdb_score': 'score',
@@ -251,7 +268,7 @@ class ImdbLookup(object):
         """Does the lookup for this entry and populates the entry fields."""
         try:
             self.lookup(entry)
-        except PluginError, e:
+        except PluginError as e:
             log_once(e.value.capitalize(), logger=log)
             # Set all of our fields to None if the lookup failed
             entry.unregister_lazy_fields(self.field_map, self.lazy_loader)
@@ -342,7 +359,7 @@ class ImdbLookup(object):
             # search is known to fail
             if not entry.get('imdb_url', eval_lazy=False):
                 result = session.query(SearchResult).\
-                         filter(SearchResult.title == entry['title']).first()
+                    filter(SearchResult.title == entry['title']).first()
                 if result:
                     if result.fails and not manager.options.retry:
                         # this movie cannot be found, not worth trying again ...
@@ -380,7 +397,7 @@ class ImdbLookup(object):
                     joinedload_all(Movie.languages),
                     joinedload_all(Movie.actors),
                     joinedload_all(Movie.directors)).\
-                    filter(Movie.url == entry['imdb_url']).first()
+                filter(Movie.url == entry['imdb_url']).first()
 
             # determine whether or not movie details needs to be parsed
             req_parse = False
@@ -405,13 +422,14 @@ class ImdbLookup(object):
                 try:
                     movie = self._parse_new_movie(entry['imdb_url'], session)
                 except UnicodeDecodeError:
-                    log.error('Unable to determine encoding for %s. Installing chardet library may help.' % entry['imdb_url'])
+                    log.error('Unable to determine encoding for %s. Installing chardet library may help.' %
+                              entry['imdb_url'])
                     # store cache so this will not be tried again
                     movie = Movie()
                     movie.url = entry['imdb_url']
                     session.add(movie)
                     raise PluginError('UnicodeDecodeError')
-                except ValueError, e:
+                except ValueError as e:
                     # TODO: might be a little too broad catch, what was this for anyway? ;P
                     if manager.options.debug:
                         log.exception(e)
@@ -429,42 +447,44 @@ class ImdbLookup(object):
     def _parse_new_movie(self, imdb_url, session):
         """
         Get Movie object by parsing imdb page and save movie into the database.
+
         :param imdb_url: Imdb url
         :param session: Session to be used
         :return: Newly added Movie
         """
-        imdb_parser = ImdbParser()
-        imdb_parser.parse(imdb_url)
+        parser = ImdbParser()
+        parser.parse(imdb_url)
         # store to database
         movie = Movie()
-        movie.photo = imdb_parser.photo
-        movie.title = imdb_parser.name
-        movie.score = imdb_parser.score
-        movie.votes = imdb_parser.votes
-        movie.year = imdb_parser.year
-        movie.mpaa_rating = imdb_parser.mpaa_rating
-        movie.plot_outline = imdb_parser.plot_outline
+        movie.photo = parser.photo
+        movie.title = parser.name
+        movie.original_title = parser.original_name
+        movie.score = parser.score
+        movie.votes = parser.votes
+        movie.year = parser.year
+        movie.mpaa_rating = parser.mpaa_rating
+        movie.plot_outline = parser.plot_outline
         movie.url = imdb_url
-        for name in imdb_parser.genres:
+        for name in parser.genres:
             genre = session.query(Genre).filter(Genre.name == name).first()
             if not genre:
                 genre = Genre(name)
-            movie.genres.append(genre) # pylint:disable=E1101
-        for index, name in enumerate(imdb_parser.languages):
+            movie.genres.append(genre)  # pylint:disable=E1101
+        for index, name in enumerate(parser.languages):
             language = session.query(Language).filter(Language.name == name).first()
             if not language:
                 language = Language(name)
             movie.languages.append(MovieLanguage(language, prominence=index))
-        for imdb_id, name in imdb_parser.actors.iteritems():
+        for imdb_id, name in parser.actors.iteritems():
             actor = session.query(Actor).filter(Actor.imdb_id == imdb_id).first()
             if not actor:
                 actor = Actor(imdb_id, name)
-            movie.actors.append(actor) # pylint:disable=E1101
-        for imdb_id, name in imdb_parser.directors.iteritems():
+            movie.actors.append(actor)  # pylint:disable=E1101
+        for imdb_id, name in parser.directors.iteritems():
             director = session.query(Director).filter(Director.imdb_id == imdb_id).first()
             if not director:
                 director = Director(imdb_id, name)
-            movie.directors.append(director) # pylint:disable=E1101
+            movie.directors.append(director)  # pylint:disable=E1101
             # so that we can track how long since we've updated the info later
         movie.updated = datetime.now()
         session.add(movie)

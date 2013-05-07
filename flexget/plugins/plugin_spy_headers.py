@@ -1,7 +1,9 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import urllib2
 import httplib
 import socket
+
 from flexget.plugin import register_plugin
 
 log = logging.getLogger('spy_headers')
@@ -47,7 +49,7 @@ class HTTPCaptureHeaderHandler(urllib2.AbstractHTTPHandler):
         try:
             h.request(req.get_method(), req.get_selector(), req.data, headers)
             r = h.getresponse()
-        except socket.error, err: # XXX what error?
+        except socket.error as err: # XXX what error?
             raise urllib2.URLError(err)
         r.recv = r.read
         fp = socket._fileobject(r, close=True)
@@ -81,7 +83,19 @@ class PluginSpyHeaders(object):
         from flexget import validator
         return validator.factory('any')
 
+    def log_requests_headers(self, response):
+        log.info('Request  : %s' % response.request.url)
+        log.info('Response : %s (%s)' % (response.status_code, response.reason))
+        log.info('-- Headers: --------------------------')
+        for header, value in response.request.headers.iteritems():
+            log.info('%s: %s' % (header, value))
+        log.info('--------------------------------------')
+        return response
+
     def on_task_start(self, task):
+        # Add our hook to the requests session
+        task.requests.hooks['response'].append(self.log_requests_headers)
+        # Backwards compatibility for plugins still using urllib
         if urllib2._opener:
             log.debug('Adding HTTPCaptureHeaderHandler to default opener')
             urllib2._opener.add_handler(HTTPCaptureHeaderHandler())
@@ -92,6 +106,7 @@ class PluginSpyHeaders(object):
 
     def on_task_exit(self, task):
         """Task exiting, remove additions"""
+        task.requests.hooks['response'].remove(self.log_requests_headers)
         if urllib2._opener:
             log.debug('Removing urllib2 default opener')
             # TODO: this uninstalls all other handlers as well, but does it matter?

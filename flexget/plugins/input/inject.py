@@ -1,9 +1,10 @@
+from __future__ import unicode_literals, division, absolute_import
 import string
 import random
 import logging
 import yaml
 from flexget.entry import Entry
-from flexget.plugin import *
+from flexget.plugin import register_plugin, register_parser_option, priority
 from flexget.utils.tools import str_to_boolean
 
 log = logging.getLogger('inject')
@@ -79,7 +80,7 @@ class InputInject(object):
 
         if options.get('accept', False):
             log.debug('accepting the injection')
-            task.accept(entry, '--inject accepted')
+            entry.accept('--inject accepted')
 
 
 register_plugin(InputInject, '--inject', debug=True, builtin=True)

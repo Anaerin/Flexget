@@ -1,14 +1,18 @@
 """ Plugin Loading & Management.
 """
 
+from __future__ import unicode_literals, division, absolute_import
 import sys
 import os
 import re
 import logging
 import time
+import pkgutil
 from itertools import ifilter
+
 from requests import RequestException
-from event import add_event_handler as add_phase_handler
+
+from flexget.event import add_event_handler as add_phase_handler
 from flexget import plugins as plugins_pkg
 
 log = logging.getLogger('plugin')
@@ -115,21 +119,21 @@ class internet(object):
             import urllib2
             try:
                 return func(*args, **kwargs)
-            except RequestException, e:
+            except RequestException as e:
                 log.debug('decorator caught RequestException')
                 raise PluginError('RequestException: %s' % e)
-            except urllib2.HTTPError, e:
+            except urllib2.HTTPError as e:
                 raise PluginError('HTTPError %s' % e.code, self.log)
-            except urllib2.URLError, e:
+            except urllib2.URLError as e:
                 log.debug('decorator caught urlerror')
                 raise PluginError('URLError %s' % e.reason, self.log)
             except BadStatusLine:
                 log.debug('decorator caught badstatusline')
                 raise PluginError('Got BadStatusLine', self.log)
-            except ValueError, e:
+            except ValueError as e:
                 log.debug('decorator caught ValueError')
                 raise PluginError(e.message)
-            except IOError, e:
+            except IOError as e:
                 log.debug('decorator caught ioerror')
                 if hasattr(e, 'reason'):
                     raise PluginError('Failed to reach server. Reason: %s' % e.reason, self.log)
@@ -147,10 +151,6 @@ def priority(value):
         return target
     return decorator
 
-
-def _strip_trailing_sep(path):
-    return path.rstrip("\\/")
-
 DEFAULT_PRIORITY = 128
 
 plugin_contexts = ['task', 'root']
@@ -162,7 +162,7 @@ task_phases = ['start', 'input', 'metainfo', 'filter', 'download', 'modify', 'ou
 # map phase names to method names
 phase_methods = {
     # task
-    'abort': 'on_task_abort', # special; not a task phase that gets called normally
+    'abort': 'on_task_abort',  # special; not a task phase that gets called normally
 
     # entry handling
     'accept': 'on_entry_accept',
@@ -173,10 +173,7 @@ phase_methods = {
     'process_start': 'on_process_start',
     'process_end': 'on_process_end',
 }
-phase_methods.update((_phase, 'on_task_' + _phase) for _phase in task_phases) # DRY
-
-# Plugin package naming
-PLUGIN_NAMESPACE = 'flexget.plugins'
+phase_methods.update((_phase, 'on_task_' + _phase) for _phase in task_phases)  # DRY
 
 # Mapping of plugin name to PluginInfo instance (logical singletons)
 plugins = {}
@@ -237,41 +234,6 @@ def register_task_phase(name, before=None, after=None):
             del _new_phase_queue[phase_name]
 
 
-class Plugin(object):
-    """
-    Base class for auto-registering plugins.
-
-    Note that inheriting form this class implies API version 2.
-
-    .. warning::
-
-       May be removed any time soon. Use :func:`register_plugin` instead until
-       we decide API's destiny.
-    """
-    PLUGIN_INFO = dict(api_ver=2)
-    LOGGER_NAME = None # use default name
-
-    def __init__(self, plugin_info, *args, **kw):
-        """Initialize basic plugin attributes."""
-        self.plugin_info = plugin_info
-        self.log = logging.getLogger(self.LOGGER_NAME or self.plugin_info.name)
-
-
-class BuiltinPlugin(Plugin):
-    """A builtin plugin."""
-    PLUGIN_INFO = Plugin.PLUGIN_INFO.copy() # inherit base info
-    PLUGIN_INFO.update(builtin=True)
-
-
-class DebugPlugin(Plugin):
-    """
-        A plugin for debugging purposes.
-    """
-    # Note that debug plugins are never builtin, so we don't need a mixin
-    PLUGIN_INFO = Plugin.PLUGIN_INFO.copy() # inherit base info
-    PLUGIN_INFO.update(debug=True)
-
-
 class PluginInfo(dict):
     """
     Allows accessing key/value pairs of this dictionary subclass via
@@ -280,30 +242,29 @@ class PluginInfo(dict):
     # Counts duplicate registrations
     dupe_counter = 0
 
-    @classmethod
-    def name_from_class(cls, plugin_class):
-        """Convention is to take camel-case class name and rewrite it to an underscore form, e.g. 'PluginName' to 'plugin_name'"""
-        return re.sub('[A-Z]+', lambda i: '_' + i.group(0).lower(), plugin_class.__name__).lstrip('_')
-
-    def __init__(self, plugin_class, name=None, groups=None, builtin=False, debug=False, api_ver=1, contexts=None, category=None):
+    def __init__(self, plugin_class, name=None, groups=None, builtin=False, debug=False, api_ver=1,
+                 contexts=None, category=None):
         """
         Register a plugin.
 
         :param plugin_class: The plugin factory.
-        :param name: Name of the plugin (if not given, default to factory class name in underscore form).
-        :param groups: Groups this plugin belongs to.
-        :param builtin: Auto-activated?
-        :param debug: True if plugin is for debugging purposes.
-        :param api_ver: Signature of callback hooks (1=task; 2=task,config).
-        :param contexts: List of where this plugin is configurable. Can be 'task', 'root', or None
-        :param category: The type of plugin. Can be one of the task phases. Defaults to the package containing the plugin.
+        :param string name: Name of the plugin (if not given, default to factory class name in underscore form).
+        :param list groups: Groups this plugin belongs to.
+        :param bool builtin: Auto-activated?
+        :param bool debug: True if plugin is for debugging purposes.
+        :param int api_ver: Signature of callback hooks (1=task; 2=task,config).
+        :param list contexts: List of where this plugin is configurable. Can be 'task', 'root', or None
+        :param string category: The type of plugin. Can be one of the task phases.
+            Defaults to the package name containing the plugin.
         """
         dict.__init__(self)
 
         if groups is None:
             groups = []
         if name is None:
-            name = PluginInfo.name_from_class(plugin_class)
+            # Convention is to take camel-case class name and rewrite it to an underscore form,
+            # e.g. 'PluginName' to 'plugin_name'
+            name = re.sub('[A-Z]+', lambda i: '_' + i.group(0).lower(), plugin_class.__name__).lstrip('_')
         if contexts is None:
             contexts = ['task']
         elif isinstance(contexts, basestring):
@@ -324,24 +285,14 @@ class PluginInfo(dict):
 
         # Create plugin instance
         self.plugin_class = plugin_class
-        if issubclass(self.plugin_class, Plugin):
-            # Base class init needs plugin info immediately
-            try:
-                self.instance = self.plugin_class(self)
-            except: # OK, gets re-raised
-                log.error("Could not create plugin '%s' from class %s.%s" % (
-                    self.name, self.plugin_class.__module__, self.plugin_class.__name__))
-                raise
-        else:
-            # Manually registered
-            self.instance = self.plugin_class()
-            self.instance.plugin_info = self # give plugin easy access to its own info
-            self.instance.log = logging.getLogger(getattr(self.instance, "LOGGER_NAME", None) or self.name)
+        self.instance = self.plugin_class()
+        self.instance.plugin_info = self  # give plugin easy access to its own info
+        self.instance.log = logging.getLogger(getattr(self.instance, "LOGGER_NAME", None) or self.name)
 
         if self.name in plugins:
             PluginInfo.dupe_counter += 1
-            log.critical('Error while registering plugin %s. %s' % \
-                (self.name, ('A plugin with the name %s is already registered' % self.name)))
+            log.critical('Error while registering plugin %s. %s' %
+                         (self.name, ('A plugin with the name %s is already registered' % self.name)))
         else:
             self.build_phase_handlers()
             plugins[self.name] = self
@@ -390,185 +341,69 @@ class PluginInfo(dict):
 register_plugin = PluginInfo
 
 
-def register(plugin_class, groups=None, auto=False):
-    """
-    Register plugin with attributes according to C{PLUGIN_INFO} class variable.
-    Additional groups can be optionally provided.
-
-    :return: Plugin info of registered plugin.
-    """
-    # Base classes outside of plugin modules are NEVER auto-registered; if you have ones
-    # in a plugin module, use the "*PluginBase" naming convention
-    if auto and plugin_class.__name__.endswith("PluginBase"):
-        log.trace("NOT auto-registering plugin base class %s.%s" % (
-            plugin_class.__module__, plugin_class.__name__))
-        return
-
-    info = plugin_class.PLUGIN_INFO
-    name = PluginInfo.name_from_class(plugin_class)
-
-    # If this very class was already registered, that's OK
-    if name in plugins and plugin_class is plugins[name].plugin_class:
-        if not auto:
-            log.trace("Ignoring dupe registration of same class %s.%s" % (
-                plugin_class.__module__, plugin_class.__name__))
-        if groups:
-            plugins[name].groups = list(set(groups) | set(plugins[name].groups))
-        return plugins[name]
-    else:
-        if auto:
-            log.trace("Auto-registering plugin %s" % name)
-        return PluginInfo(plugin_class, name, list(set(info.get('groups', []) + (groups or []))),
-            info.get('builtin', False), info.get('debug', False), info.get('api_ver', 1))
+def _strip_trailing_sep(path):
+    return path.rstrip("\\/")
 
 
 def get_standard_plugins_path():
-    """Determine a plugin path suitable for general use."""
-    # Get basic path from enironment
+    """
+    :returns: List of directories where plugins should be tried to load from.
+    :rtype: list
+    """
+    # Get basic path from environment
     env_path = os.environ.get('FLEXGET_PLUGIN_PATH')
     if env_path:
         # Get rid of trailing slashes, since Python can't handle them when
         # it tries to import modules.
-        path = map(_strip_trailing_sep, env_path.split(os.pathsep))
+        paths = map(_strip_trailing_sep, env_path.split(os.pathsep))
     else:
         # Use standard default
-        path = [os.path.join(os.path.expanduser('~'), '.flexget', 'plugins')]
+        paths = [os.path.join(os.path.expanduser('~'), '.flexget', 'plugins')]
 
     # Add flexget.plugins directory (core plugins)
-    path.append(os.path.abspath(os.path.dirname(plugins_pkg.__file__)))
-
-    # Leads to problems if flexget is imported via PYTHONPATH and another copy
-    # is installed into site-packages, remove this altogether if nobody has any problems
-    # (and those that have can use FLEXGET_PLUGIN_PATH explicitely)
-    ## Search the arch independent path if we can determine that and
-    ## the plugin is found nowhere else, and we're in default mode
-    #if not env_path and sys.platform != 'win32':
-    #    try:
-    #        from distutils.sysconfig import get_python_lib
-    #    except ImportError:
-    #        # If distutuils is not available, we just won't add that path
-    #        log.debug('FYI: Not adding archless plugin path due to distutils missing')
-    #    else:
-    #        archless_path = os.path.join(get_python_lib(), 'flexget', 'plugins')
-    #        if archless_path not in path:
-    #            log.debug("FYI: Adding archless plugin path '%s' from distutils" % archless_path)
-    #            path.append(archless_path)
-
-    return path
+    paths.append(os.path.abspath(os.path.dirname(plugins_pkg.__file__)))
+    return paths
 
 
-def load_plugins_from_dirs(dirs):
+def _load_plugins_from_dirs(dirs):
     """
     :param list dirs: Directories from where plugins are loaded from
     """
 
+    log.debug('Trying to load plugins from: %s' % dirs)
     # add all dirs to plugins_pkg load path so that plugins are loaded from flexget and from ~/.flexget/plugins/
     plugins_pkg.__path__ = map(_strip_trailing_sep, dirs)
-
-    # construct list of plugin_packages from all load path subdirectories
-    plugin_packages = []
-    for dir in dirs:
-        if not os.path.exists(dir):
+    for importer, name, ispkg in pkgutil.walk_packages(dirs, plugins_pkg.__name__ + '.'):
+        if ispkg:
             continue
-        plugin_packages.extend([n for n in os.listdir(dir) if os.path.isdir(os.path.join(dir, n))])
-
-    # import plugin packages and manipulate their load paths
-    for subpkg in plugin_packages[:]:
-        # must be a proper python package with __init__.py
-        if os.path.isdir(os.path.join(os.path.dirname(plugins_pkg.__file__), subpkg)) and \
-           os.path.isfile(os.path.join(os.path.dirname(plugins_pkg.__file__), subpkg, '__init__.py')):
-
-            # import sub-package and manipulate its search path so that all existing subdirs are in it
-            getattr(__import__(PLUGIN_NAMESPACE, fromlist=[subpkg], level=0), subpkg).__path__ = [
-                _strip_trailing_sep(os.path.join(package_base, subpkg))
-                for package_base in dirs if os.path.isfile(os.path.join(package_base, subpkg, '__init__.py'))]
-        else:
-            log.debug('removing defunct plugin_package %s' % subpkg)
-            plugin_packages.remove(subpkg)
-
-    # actually load plugins from directories
-    for dir in dirs:
-        if not dir:
+        # Don't load any plugins again if they are already loaded
+        # This can happen if one plugin imports from another plugin
+        if name in sys.modules:
             continue
-        if os.path.isdir(dir):
-            log.debug('Looking for plugins in %s', dir)
-            load_plugins_from_dir(dir)
-
-            # Also look in sub-packages named like the task phases, plus "generic"
-            for subpkg in plugin_packages:
-                subpath = os.path.join(dir, subpkg)
-                if os.path.isdir(subpath):
-                    # Only log existing subdirs
-                    log.debug("Looking for sub-plugins in '%s'", subpath)
-                    load_plugins_from_dir(dir, subpkg)
-        else:
-            log.debug('Ignoring non-existing plugin directory %s', dir)
-
-
-def load_plugins_from_dir(basepath, subpkg=None):
-    # Get the list of valid python suffixes for plugins
-    # this includes .py, .pyc, and .pyo (depending on if we are running -O)
-    # but it doesn't include compiled modules (.so, .dll, etc)
-    #
-    # This causes quite a bit problems when renaming plugins and is there really need to import .pyc / pyo?
-    #
-    # import imp
-    # valid_suffixes = [suffix for suffix, mod_type, flags in imp.get_suffixes()
-    #                         if flags in (imp.PY_SOURCE, imp.PY_COMPILED)]
-    valid_suffixes = ['.py']
-    namespace = PLUGIN_NAMESPACE + '.'
-    dirpath = basepath
-    if subpkg:
-        namespace += subpkg + '.'
-        dirpath = os.path.join(dirpath, subpkg)
-
-    found_plugins = set()
-    for filename in os.listdir(dirpath):
-        path = os.path.join(dirpath, filename)
-        if os.path.isfile(path):
-            f_base, ext = os.path.splitext(filename)
-            if ext in valid_suffixes:
-                if f_base == '__init__':
-                    continue # don't load __init__.py again
-                if (namespace + f_base) in _loaded_plugins:
-                    log.debug('Duplicate plugin module `%s` in `%s` ignored, `%s` already loaded!' % (
-                        namespace + f_base, dirpath, _loaded_plugins[namespace + f_base]))
-                else:
-                    _loaded_plugins[namespace + f_base] = path
-                    found_plugins.add(namespace + f_base)
-
-    for modulename in found_plugins:
+        loader = importer.find_module(name)
+        # Don't load from pyc files
+        if not loader.filename.endswith('.py'):
+            continue
         try:
-            __import__(modulename, level=0)
-        except DependencyError, e:
+            loaded_module = loader.load_module(name)
+        except DependencyError as e:
             if e.has_message():
                 msg = e.message
             else:
-                msg = 'Plugin `%s` requires `%s` to load.' % (e.issued_by or modulename, e.missing or 'N/A')
+                msg = 'Plugin `%s` requires `%s` to load.' % (e.issued_by or name, e.missing or 'N/A')
             if not e.silent:
                 log.warning(msg)
             else:
                 log.debug(msg)
-        except ImportError, e:
-            log.critical('Plugin `%s` failed to import dependencies' % modulename)
+        except ImportError as e:
+            log.critical('Plugin `%s` failed to import dependencies' % name)
             log.exception(e)
-        except Exception, e:
-            log.critical('Exception while loading plugin %s' % modulename)
+        except Exception as e:
+            log.critical('Exception while loading plugin %s' % name)
             log.exception(e)
             raise
         else:
-            log.trace('Loaded module %s from %s' % (modulename[len(PLUGIN_NAMESPACE) + 1:], dirpath))
-
-            # Auto-register plugins that inherit from plugin base classes,
-            # and weren't already registered manually
-            for obj in vars(sys.modules[modulename]).values():
-                try:
-                    if not issubclass(obj, Plugin):
-                        continue
-                except TypeError:
-                    continue # not a class
-                else:
-                    register(obj, auto=True)
+            log.trace('Loaded module %s from %s' % (name, loaded_module.__file__))
 
     if _new_phase_queue:
         for phase, args in _new_phase_queue.iteritems():
@@ -584,7 +419,6 @@ def load_plugins(parser):
         if parser is not None:
             for args, kwargs in _plugin_options:
                 parser.add_argument(*args, **kwargs)
-        return 0
 
     # suppress DeprecationWarning's
     import warnings
@@ -593,7 +427,7 @@ def load_plugins(parser):
     start_time = time.time()
     _parser = parser
     try:
-        load_plugins_from_dirs(get_standard_plugins_path())
+        _load_plugins_from_dirs(get_standard_plugins_path())
     finally:
         _parser = None
     took = time.time() - start_time
@@ -602,7 +436,20 @@ def load_plugins(parser):
 
 
 def get_plugins(phase=None, group=None, context=None, category=None, min_api=None):
+    """
+    Query other plugins characteristics.
+
+    :param string phase: Require phase
+    :param string group: Plugin must belong to this group.
+    :param string context: Where plugin is configured, eg. (root, task)
+    :param string category: Type of plugin, phase names.
+    :param int min_api: Minimum api version.
+    :return: List of PluginInfo instances.
+    :rtype: list
+    """
     def matches(plugin):
+        if phase is not None and phase not in phase_methods:
+            raise ValueError('Unknown phase %s' % phase)
         if phase and not phase in plugin.phase_handlers:
             return False
         if group and not group in plugin.groups:
@@ -618,7 +465,12 @@ def get_plugins(phase=None, group=None, context=None, category=None, min_api=Non
 
 
 def get_plugins_by_phase(phase):
-    """Return an iterator over all plugins that hook :phase:"""
+    """
+    .. deprecated:: 1.0.3328
+       Use :func:`get_plugins` instead
+
+    Return an iterator over all plugins that hook :phase:
+    """
     if not phase in phase_methods:
         raise Exception('Unknown phase %s' % phase)
     return get_plugins(phase=phase)
@@ -630,7 +482,12 @@ def get_phases_by_plugin(name):
 
 
 def get_plugins_by_group(group):
-    """Return an iterator over all plugins with in specified group."""
+    """
+    .. deprecated:: 1.0.3328
+       Use :func:`get_plugins` instead
+
+    Return an iterator over all plugins with in specified group.
+    """
     return get_plugins(group=group)
 
 
@@ -649,6 +506,7 @@ def get_plugin_by_name(name, issued_by='???'):
 _excluded_recursively = []
 
 
+# TODO: remove and use LazyValidator
 def add_plugin_validators(validator, phase=None, group=None, excluded=None, api_ver=2):
     """
     :param validator: Instance of validator where other plugin validators are added into. (Eg. list or dict validator)

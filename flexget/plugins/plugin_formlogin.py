@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import os
 import urllib2
@@ -38,7 +39,7 @@ class FormLogin(object):
         br.set_handle_robots(False)
         try:
             br.open(url)
-        except Exception, e:
+        except Exception as e:
             # TODO: improve error handling
             raise PluginError('Unable to post login form', log)
 
@@ -53,16 +54,15 @@ class FormLogin(object):
                 loginform[userfield] = username
                 loginform[passfield] = password
                 break
-            except Exception, e:
+            except Exception as e:
                 pass
         else:
             received = os.path.join(task.manager.config_base, 'received')
             if not os.path.isdir(received):
                 os.mkdir(received)
             filename = os.path.join(received, '%s.formlogin.html' % task.name)
-            f = open(filename, 'w')
-            f.write(br.response().get_data())
-            f.close()
+            with open(filename, 'w') as f:
+                f.write(br.response().get_data())
             log.critical('I have saved the login page content to %s for you to view' % filename)
             raise PluginError('Unable to find login fields', log)
 

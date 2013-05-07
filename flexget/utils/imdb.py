@@ -1,15 +1,25 @@
+from __future__ import unicode_literals, division, absolute_import
 import difflib
 import logging
 import re
+
+from BeautifulSoup import Tag
+
 from flexget.utils.soup import get_soup
 from flexget.utils.requests import Session
 from flexget.utils.tools import str_to_int
-from BeautifulSoup import Tag
+
 
 log = logging.getLogger('utils.imdb')
 # IMDb delivers a version of the page which is unparsable to unknown (and some known) user agents, such as requests'
 # Spoof the old urllib user agent to keep results consistent
-requests = Session(headers={'User-Agent': 'Python-urllib/2.6'})
+requests = Session()
+requests.headers.update({'User-Agent': 'Python-urllib/2.6'})
+#requests.headers.update({'User-Agent': random.choice(USERAGENTS)})
+
+# this makes most of the titles to be returned in english translation, but not all of them
+requests.headers.update({'Accept-Language': 'en-US,en;q=0.8'})
+
 # give imdb a little break between requests (see: http://flexget.com/ticket/129#comment:1)
 requests.set_domain_delay('imdb.com', '3 seconds')
 
@@ -49,10 +59,10 @@ class ImdbSearch(object):
 
         self.max_results = 10
 
-    def ireplace(self, str, old, new, count=0):
+    def ireplace(self, text, old, new, count=0):
         """Case insensitive string replace"""
         pattern = re.compile(re.escape(old), re.I)
-        return re.sub(pattern, new, str, count)
+        return re.sub(pattern, new, text, count)
 
     def smart_match(self, raw_name):
         """Accepts messy name, cleans it and uses information available to make smartest and best match"""
@@ -101,7 +111,7 @@ class ImdbSearch(object):
         diff = movies[0]['match'] - movies[1]['match']
         if diff < self.min_diff:
             log.debug('unable to determine correct movie, min_diff too small (`%s` <-?-> `%s`)' %
-                (movies[0], movies[1]))
+                      (movies[0], movies[1]))
             for m in movies:
                 log.debug('remain: %s (match: %s) %s' % (m['name'], m['match'], m['url']))
             return None
@@ -130,12 +140,12 @@ class ImdbSearch(object):
             movie['name'] = name
             movie['url'] = actual_url
             movie['imdb_id'] = extract_id(actual_url)
-            movie['year'] = None # skips year check
+            movie['year'] = None  # skips year check
             movies.append(movie)
             return movies
 
         # the god damn page has declared a wrong encoding
-        soup = get_soup(page.content)
+        soup = get_soup(page.text)
 
         section_table = soup.find('table', 'findList')
         if not section_table:
@@ -166,7 +176,7 @@ class ImdbSearch(object):
             ratio = seq.ratio()
 
             # check if some of the akas have better ratio
-            for aka in link.parent.find_all('p', attrs={'class': 'find-aka'}):
+            for aka in link.parent.find_all('i'):
                 aka = aka.next.string
                 match = re.search(r'".*"', aka)
                 if not match:
@@ -207,6 +217,7 @@ class ImdbParser(object):
         self.year = 0
         self.plot_outline = None
         self.name = None
+        self.original_name = None
         self.url = None
         self.imdb_id = None
         self.photo = None
@@ -220,45 +231,54 @@ class ImdbParser(object):
         url = make_url(self.imdb_id)
         self.url = url
         page = requests.get(url)
-        soup = get_soup(page.content)
+        soup = get_soup(page.text)
 
         # get photo
-        tag_photo = soup.find('div', attrs={'class': 'photo'})
+        tag_photo = soup.find('td', attrs={'id': 'img_primary'})
         if tag_photo:
             tag_img = tag_photo.find('img')
             if tag_img:
                 self.photo = tag_img.get('src')
                 log.debug('Detected photo: %s' % self.photo)
 
-        # get rating. Always the first absmiddle.
+        # get rating. contentRating <span> in infobar.
         tag_infobar_div = soup.find('div', attrs={'class': 'infobar'})
         if tag_infobar_div:
-            tag_mpaa_rating = tag_infobar_div.find('img', attrs={'class': 'absmiddle'})
+            tag_mpaa_rating = tag_infobar_div.find('span', attrs={'itemprop': 'contentRating'})
             if tag_mpaa_rating:
-                if tag_mpaa_rating['alt'] != tag_mpaa_rating['title']:
-                    # If we've found something of class absmiddle in the infobar,
-                    # it should be mpaa_rating, since that's the only one in there.
-                    log.warning("MPAA rating alt and title don't match for URL %s - plugin needs an update?" % url)
+                if not tag_mpaa_rating.get('class') or not tag_mpaa_rating['class'][0].startswith('us_'):
+                    log.warning('Could not determine mpaa rating for %s' % url)
                 else:
-                    self.mpaa_rating = tag_mpaa_rating['alt']
-                    log.debug('Detected mpaa rating: %s' % self.mpaa_rating)
+                    rating_class = tag_mpaa_rating['class'][0]
+                    if rating_class == 'us_not_rated':
+                        self.mpaa_rating = 'NR'
+                    else:
+                        self.mpaa_rating = rating_class.lstrip('us_').replace('_', '-').upper()
+                log.debug('Detected mpaa rating: %s' % self.mpaa_rating)
             else:
-                log.debug('Unable to match signature of mpaa rating for %s - could be a TV episode, or plugin needs update?' % url)
+                log.debug('Unable to match signature of mpaa rating for %s - '
+                          'could be a TV episode, or plugin needs update?' % url)
         else:
             # We should match the infobar, it's an integral part of the IMDB page.
             log.warning('Unable to get infodiv class for %s - plugin needs update?' % url)
 
         # get name
-        tag_name = soup.find('h1')
+        tag_name = soup.find('h1').find('span', attrs={'itemprop': 'name'})
         if tag_name:
-            if tag_name.next:
-                # Handle a page not found in IMDB. tag_name.string is
-                # "<br/> Page Not Found" and there is no next tag. Thus, None.
-                if tag_name.next.string is not None:
-                    self.name = tag_name.next.string.strip()
-                    log.debug('Detected name: %s' % self.name)
+            self.name = tag_name.text
+            log.debug('Detected name: %s' % self.name)
         else:
             log.warning('Unable to get name for %s - plugin needs update?' % url)
+
+        tag_original_title_i = soup.find('i', text=re.compile(r'original title'))
+        if tag_original_title_i:
+            span = tag_original_title_i.parent
+            tag_original_title_i.decompose()
+            self.original_name = span.text.strip()
+            log.debug('Detected original name: %s' % self.original_name)
+        else:
+            # if title is already in original language, it doesn't have the tag
+            log.debug('Unable to get original title for %s - it probably does not exists' % url)
 
         # detect if movie is eligible for ratings
         rating_ineligible = soup.find('div', attrs={'class': 'rating-ineligible'})
@@ -273,23 +293,27 @@ class ImdbParser(object):
             else:
                 log.warning('Unable to get votes for %s - plugin needs update?' % url)
 
-            # get score
-            span_score = soup.find(itemprop='ratingValue')
+            # get score - find the ratingValue item that contains a numerical value
+            span_score = soup.find(itemprop='ratingValue', text=re.compile('[\d\.]+'))
             if span_score:
                 try:
                     self.score = float(span_score.string)
-                except ValueError:
-                    log.debug('tag_score %s is not valid float' % span_score.text)
+                except (ValueError, TypeError):
+                    log.debug('tag_score %r is not valid float' % span_score.string)
                 log.debug('Detected score: %s' % self.score)
             else:
                 log.warning('Unable to get score for %s - plugin needs update?' % url)
 
         # get genres
-        for link in soup.find_all('a', attrs={'itemprop': 'genre'}):
-            self.genres.append(link.text.lower())
+        genres = soup.find('div', itemprop='genre')
+        if genres:
+            for link in genres.find_all('a'):
+                self.genres.append(link.text.strip().lower())
+        else:
+            log.warning('Unable to find genres section for %s - plugin needs update?' % url)
 
         # get languages
-        for link in soup.find_all('a', attrs={'itemprop': 'inLanguage'}):
+        for link in soup.find_all('a', href=re.compile('/language/.*')):
             # skip non-primary languages "(a few words)", etc.
             m = re.search('(?x) \( [^()]* \\b few \\b', link.next_sibling)
             if not m:
@@ -317,7 +341,7 @@ class ImdbParser(object):
         if tag_cast:
             for actor in tag_cast.find_all('a', href=re.compile('/name/nm')):
                 actor_id = extract_id(actor['href'])
-                actor_name = actor.text
+                actor_name = actor.text.strip()
                 # tag instead of name
                 if isinstance(actor_name, Tag):
                     actor_name = None
@@ -326,7 +350,7 @@ class ImdbParser(object):
         # get director(s)
         h4_director = soup.find('h4', text=re.compile('Director'))
         if h4_director:
-            for director in h4_director.parent.parent.find_all('a', href=re.compile('/name/nm')):
+            for director in h4_director.parent.find_all('a', href=re.compile('/name/nm')):
                 director_id = extract_id(director['href'])
                 director_name = director.text
                 # tag instead of name

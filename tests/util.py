@@ -2,6 +2,7 @@
 A method to create test-specific temporary directories
 """
 
+from __future__ import unicode_literals, division, absolute_import
 import sys
 import os
 import shutil
@@ -16,7 +17,7 @@ log = logging.getLogger('tests.util')
 def mkdir(*a, **kw):
     try:
         os.mkdir(*a, **kw)
-    except OSError, e:
+    except OSError as e:
         if e.errno == errno.EEXIST:
             pass
         else:
@@ -77,26 +78,10 @@ def maketemp(name=None):
     log.trace("Creating empty tmpdir %r" % tmp)
     try:
         shutil.rmtree(tmp)
-    except OSError, e:
+    except OSError as e:
         if e.errno == errno.ENOENT:
             pass
         else:
             raise
     os.mkdir(tmp)
     return tmp
-
-
-class date_aged(object):
-    """Context manager which hacks time.time and datetime.now builtins to have a simulated offset."""
-
-    def __init__(self, offset):
-        self.offset = parse_timedelta(offset)
-        self.real_time = time.time
-
-    def __enter__(self):
-        log.debug('Offsetting current time by %r.' % self.offset)
-        time.time = lambda: self.real_time() + self.offset.seconds + self.offset.days * 3600 * 24
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        log.debug('Resetting current time to now.')
-        time.time = self.real_time

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 from flexget.plugin import register_plugin, get_plugin_by_name, get_plugins_by_phase, PluginError
 from flexget.plugins.filter.series import FilterSeriesBase
 import logging
@@ -54,8 +55,8 @@ class ImportSeries(FilterSeriesBase):
 
             for entry in result:
                 s = series.setdefault(entry['title'], {})
-                if entry.get('thetvdb_id'):
-                    s['set'] = {'thetvdb_id': entry['thetvdb_id']}
+                if entry.get('tvdb_id'):
+                    s['set'] = {'tvdb_id': entry['tvdb_id']}
 
         if not series:
             log.info('Did not get any series to generate series configuration')

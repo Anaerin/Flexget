@@ -1,10 +1,11 @@
+from __future__ import unicode_literals, division, absolute_import
 import hashlib
 import logging
 import re
 from requests import RequestException
 from flexget.utils import json
 from flexget.utils.cached_input import cached
-from flexget.plugin import register_plugin, PluginError, PluginWarning
+from flexget.plugin import register_plugin, PluginError
 from flexget.entry import Entry
 
 log = logging.getLogger('trakt_list')
@@ -39,7 +40,7 @@ class TraktList(object):
         'title': 'title',
         'url': 'url',
         'imdb_id': 'imdb_id',
-        'thetvdb_id': 'tvdb_id',
+        'tvdb_id': 'tvdb_id',
         'tvrage_id': 'tvrage_id'}
 
     def validator(self):
@@ -102,15 +103,15 @@ class TraktList(object):
 
         result = task.requests.get(url, data=json.dumps(auth))
         try:
-            data = task.requests.post(url, data=json.dumps(auth)).json
-        except RequestException, e:
+            data = task.requests.post(url, data=json.dumps(auth)).json()
+        except RequestException as e:
             raise PluginError('Could not retrieve list from trakt (%s)' % e.message)
 
         def check_auth():
             if task.requests.post(
                     'http://api.trakt.tv/account/test/' + config['api_key'],
                     data=json.dumps(auth), raise_status=False
-                    ).status_code != 200:
+            ).status_code != 200:
                 raise PluginError('Authentication to trakt failed.')
 
         if 'error' in data:

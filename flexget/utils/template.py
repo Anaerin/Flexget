@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import os
 import re
@@ -7,8 +8,11 @@ from datetime import datetime, date, time
 import locale
 from email.utils import parsedate
 from time import mktime
-from jinja2 import (Environment, StrictUndefined, ChoiceLoader, FileSystemLoader, PackageLoader, TemplateNotFound,
+
+from jinja2 import (Environment, StrictUndefined, ChoiceLoader,
+                    FileSystemLoader, PackageLoader, TemplateNotFound,
                     TemplateSyntaxError, Undefined)
+
 from flexget.event import event
 from flexget.plugin import PluginError
 from flexget.utils.pathscrub import pathscrub
@@ -94,7 +98,7 @@ def filter_format_number(val, places=None, grouping=True):
 
 def filter_pad(val, width, fillchar='0'):
     """Pads a number or string with fillchar to the specified width."""
-    return str(val).rjust(width, fillchar)
+    return unicode(val).rjust(width, fillchar)
 
 
 # Override the built-in Jinja default filter due to Jinja bug
@@ -149,7 +153,7 @@ def render_from_entry(template_string, entry):
     if isinstance(template_string, basestring):
         try:
             template = environment.from_string(template_string)
-        except TemplateSyntaxError, e:
+        except TemplateSyntaxError as e:
             raise PluginError('Error in template syntax: ' + e.message)
     else:
         # We can also support an actual Template being passed in
@@ -157,6 +161,9 @@ def render_from_entry(template_string, entry):
     # Make a copy of the Entry so we can add some more fields
     variables = copy(entry)
     variables['now'] = datetime.now()
+    # Add task name to variables, usually it's there because metainfo_task plugin, but not always
+    if 'task' not in variables and hasattr(entry, 'task'):
+        variables['task'] = entry.task.name
     # We use the lower level render function, so that our Entry is not cast into a dict (and lazy loading lost)
     try:
         result = u''.join(template.root_render_func(template.new_context(variables, shared=True)))
@@ -164,7 +171,7 @@ def render_from_entry(template_string, entry):
         exc_info = sys.exc_info()
         try:
             return environment.handle_exception(exc_info, True)
-        except Exception, e:
+        except Exception as e:
             error = RenderError('(%s) %s' % (type(e).__name__, e))
             log.debug('Error during rendering: %s' % error)
             raise error
@@ -173,11 +180,11 @@ def render_from_entry(template_string, entry):
     if result == template_string:
         try:
             result = template_string % entry
-        except KeyError, e:
+        except KeyError as e:
             raise RenderError('Does not contain the field `%s` for string replacement.' % e)
-        except ValueError, e:
+        except ValueError as e:
             raise PluginError('Invalid string replacement template: %s (%s)' % (template_string, e))
-        except TypeError, e:
+        except TypeError as e:
             raise RenderError('Error during string replacement: %s' % e.message)
 
     return result
@@ -195,7 +202,7 @@ def render_from_task(template, task):
         template = environment.from_string(template)
     try:
         result = template.render({'task': task})
-    except Exception, e:
+    except Exception as e:
         raise RenderError('(%s) %s' % (type(e).__name__, e))
 
     return result

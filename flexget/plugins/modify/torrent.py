@@ -1,8 +1,9 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
-from flexget.plugin import register_plugin, priority
-# TORRENT_RE is redundant by now, but keep it here, in case someone was crazy enough to import it
-from flexget.utils.bittorrent import Torrent, is_torrent_file
 import os
+
+from flexget.plugin import register_plugin, priority
+from flexget.utils.bittorrent import Torrent, is_torrent_file
 
 log = logging.getLogger('modif_torrent')
 
@@ -23,10 +24,10 @@ class TorrentFilename(object):
                 log.trace('%s doesn\'t have a file associated' % entry['title'])
                 continue
             if not os.path.exists(entry['file']):
-                task.fail(entry, 'File %s does not exists' % entry['file'])
+                entry.fail('File %s does not exists' % entry['file'])
                 continue
             if os.path.getsize(entry['file']) == 0:
-                task.fail(entry, 'File %s is 0 bytes in size' % entry['file'])
+                entry.fail('File %s is 0 bytes in size' % entry['file'])
                 continue
             if not is_torrent_file(entry['file']):
                 continue
@@ -34,28 +35,27 @@ class TorrentFilename(object):
 
             # create torrent object from torrent
             try:
-                f = open(entry['file'], 'rb')
-                # NOTE: this reads entire file into memory, but we're pretty sure it's
-                # a small torrent file since it starts with TORRENT_RE
-                data = f.read()
-                f.close()
+                with open(entry['file'], 'rb') as f:
+                    # NOTE: this reads entire file into memory, but we're pretty sure it's
+                    # a small torrent file since it starts with TORRENT_RE
+                    data = f.read()
 
                 if 'content-length' in entry:
                     if len(data) != entry['content-length']:
-                        task.fail(entry, 'Torrent file length doesn\'t match to the one reported by the server')
+                        entry.fail('Torrent file length doesn\'t match to the one reported by the server')
                         self.purge(entry)
                         continue
 
                 # construct torrent object
                 try:
                     torrent = Torrent(data)
-                except SyntaxError, e:
-                    task.fail(entry, '%s - broken or invalid torrent file received' % e.message)
+                except SyntaxError as e:
+                    entry.fail('%s - broken or invalid torrent file received' % e.message)
                     self.purge(entry)
                     continue
 
                 entry['torrent'] = torrent
-                entry['torrent_info_hash'] = torrent.get_info_hash()
+                entry['torrent_info_hash'] = torrent.info_hash
                 # if we do not have good filename (by download plugin)
                 # for this entry, try to generate one from torrent content
                 if entry.get('filename'):
@@ -65,7 +65,7 @@ class TorrentFilename(object):
                 else:
                     # generate filename from torrent or fall back to title plus extension
                     entry['filename'] = self.make_filename(torrent, entry)
-            except Exception, e:
+            except Exception as e:
                 log.exception(e)
 
     @priority(TORRENT_PRIO)
@@ -75,9 +75,8 @@ class TorrentFilename(object):
                 if entry['torrent'].modified:
                     # re-write data into a file
                     log.debug('Writing modified torrent file for %s' % entry['title'])
-                    f = open(entry['file'], 'wb+')
-                    f.write(entry['torrent'].encode())
-                    f.close()
+                    with open(entry['file'], 'wb+') as f:
+                        f.write(entry['torrent'].encode())
 
     def make_filename(self, torrent, entry):
         """Build a filename for this torrent"""
@@ -103,7 +102,6 @@ class TorrentFilename(object):
         return fn
 
     def purge(self, entry):
-        import os
         if os.path.exists(entry['file']):
             log.debug('removing temp file %s from %s' % (entry['file'], entry['title']))
             os.remove(entry['file'])

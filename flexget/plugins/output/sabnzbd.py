@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import urllib
 from flexget.plugin import register_plugin
@@ -79,16 +80,16 @@ class OutputSabnzbd(object):
             log.debug('request_url: %s' % request_url)
             try:
                 response = urlopener(request_url, log).read()
-            except Exception, e:
+            except Exception as e:
                 log.critical('Failed to use sabnzbd. Requested %s' % request_url)
                 log.critical('Result was: %s' % e)
-                task.fail(entry, 'sabnzbd unreachable')
+                entry.fail('sabnzbd unreachable')
                 if task.manager.options.debug:
                     log.exception(e)
                 continue
 
             if 'error' in response.lower():
-                task.fail(entry, response.replace('\n', ''))
+                entry.fail(response.replace('\n', ''))
             else:
                 log.info('Added `%s` to SABnzbd' % (entry['title']))
 

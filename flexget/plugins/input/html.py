@@ -1,15 +1,13 @@
+from __future__ import unicode_literals, division, absolute_import
 import urlparse
 import logging
-from bs4 import Tag
 import urllib
-import urllib2
 import zlib
 import re
 from flexget.entry import Entry
 from flexget.plugin import register_plugin, internet, PluginError
 from flexget.utils.soup import get_soup
 from flexget.utils.cached_input import cached
-from flexget.utils.tools import urlopener
 
 log = logging.getLogger('html')
 
@@ -68,25 +66,21 @@ class InputHtml(object):
 
         log.debug('InputPlugin html requesting url %s' % config['url'])
 
+        auth = None
         if config.get('username') and config.get('password'):
             log.debug('Basic auth enabled. User: %s Password: %s' % (config['username'], config['password']))
-            passman = urllib2.HTTPPasswordMgrWithDefaultRealm()
-            passman.add_password(None, config['url'], config['username'], config['password'])
-            handlers = [urllib2.HTTPBasicAuthHandler(passman)]
-        else:
-            handlers = None
-        page = urlopener(config['url'], log, handlers=handlers)
-        soup = get_soup(page)
-        log.debug('Detected encoding %s' % soup.originalEncoding)
+            auth = (config['username'], config['password'])
+
+        page = task.requests.get(config['url'], auth=auth)
+        soup = get_soup(page.text)
 
         # dump received content into a file
         if 'dump' in config:
             name = config['dump']
             log.info('Dumping %s into %s' % (config['url'], name))
             data = soup.prettify()
-            f = open(name, 'w')
-            f.write(data)
-            f.close()
+            with open(name, 'w') as f:
+                f.write(data)
 
         return self.create_entries(config['url'], soup, config)
 

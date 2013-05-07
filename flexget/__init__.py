@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+from __future__ import unicode_literals, division, absolute_import
 import os
 import sys
 import logging
@@ -8,7 +9,7 @@ from flexget.options import CoreArgumentParser
 from flexget import plugin
 from flexget.manager import Manager
 
-__version__ = '{subversion}'
+__version__ = '{git}'
 
 log = logging.getLogger('main')
 
@@ -25,7 +26,7 @@ def main():
 
     try:
         manager = Manager(options)
-    except IOError, e:
+    except IOError as e:
         # failed to load config, TODO: why should it be handled here? So sys.exit isn't called in webui?
         log.critical(e)
         logger.flush_logging_to_console()

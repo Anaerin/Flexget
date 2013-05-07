@@ -1,8 +1,10 @@
+from __future__ import unicode_literals, division, absolute_import
 import os
 from netrc import netrc, NetrcParseError
 import logging
 import base64
-from flexget.plugin import register_plugin, priority, get_plugin_by_name, PluginError, DependencyError
+
+from flexget.plugin import register_plugin, priority, get_plugin_by_name, PluginError
 from flexget import validator
 from flexget.entry import Entry
 from flexget.utils.template import RenderError
@@ -52,6 +54,13 @@ class TransmissionBase(object):
         config.setdefault('enabled', True)
         config.setdefault('host', 'localhost')
         config.setdefault('port', 9091)
+        if 'netrc' in config:
+            try:
+                config['username'], _, config['password'] = netrc(config['netrc']).authenticators(config['host'])
+            except IOError as e:
+                log.error('netrc: unable to open: %s' % e.filename)
+            except NetrcParseError as e:
+                log.error('netrc: %s, file: %s, line: %s' % (e.msg, e.filename, e.lineno))
         return config
 
     def create_rpc_client(self, config):
@@ -59,24 +68,11 @@ class TransmissionBase(object):
         from transmissionrpc import TransmissionError
         from transmissionrpc import HTTPHandlerError
 
-        user, password = None, None
-
-        if 'netrc' in config:
-            try:
-                user, account, password = netrc(config['netrc']).authenticators(config['host'])
-            except IOError, e:
-                log.error('netrc: unable to open: %s' % e.filename)
-            except NetrcParseError, e:
-                log.error('netrc: %s, file: %s, line: %s' % (e.msg, e.filename, e.lineno))
-        else:
-            if 'username' in config:
-                user = config['username']
-            if 'password' in config:
-                password = config['password']
+        user, password = config.get('username'), config.get('password')
 
         try:
             cli = transmissionrpc.Client(config['host'], config['port'], user, password)
-        except TransmissionError, e:
+        except TransmissionError as e:
             if isinstance(e.original, HTTPHandlerError):
                 if e.original.code == 111:
                     raise PluginError("Cannot connect to transmission. Is it running?")
@@ -138,6 +134,12 @@ class PluginTransmissionInput(TransmissionBase):
         if not self.client:
             self.client = self.create_rpc_client(config)
         entries = []
+
+        # Hack/Workaround for http://flexget.com/ticket/2002
+        # TODO: Proper fix
+        if 'username' in config and 'password' in config:
+            self.client.http_handler.set_authentication(self.client.url, config['username'], config['password'])
+
         for torrent in self.client.info().values():
             torrentCompleted = self._torrent_completed(torrent)
             if not config['onlycomplete'] or torrentCompleted:
@@ -239,7 +241,7 @@ class PluginTransmission(TransmissionBase):
         if config['removewhendone']:
             try:
                 self.remove_finished(self.client)
-            except TransmissionError, e:
+            except TransmissionError as e:
                 log.error('Error while attempting to remove completed torrents from transmission: %s' % e)
 
     def _make_torrent_options_dict(self, config, entry):
@@ -255,38 +257,40 @@ class PluginTransmission(TransmissionBase):
 
         options = {'add': {}, 'change': {}}
 
+        add = options['add']
         if opt_dic.get('path'):
             try:
-                path = os.path.expanduser(entry.render(opt_dic['path'])).encode('utf-8')
-                options['add']['download_dir'] = pathscrub(path)
-            except RenderError, e:
+                path = os.path.expanduser(entry.render(opt_dic['path']))
+                add['download_dir'] = pathscrub(path).encode('utf-8')
+            except RenderError as e:
                 log.error('Error setting path for %s: %s' % (entry['title'], e))
         if 'addpaused' in opt_dic:
-            options['add']['paused'] = opt_dic['addpaused']
+            add['paused'] = opt_dic['addpaused']
         if 'bandwidthpriority' in opt_dic:
-            options['add']['bandwidthPriority'] = opt_dic['bandwidthpriority']
+            add['bandwidthPriority'] = opt_dic['bandwidthpriority']
         if 'maxconnections' in opt_dic:
-            options['add']['peer_limit'] = opt_dic['maxconnections']
+            add['peer_limit'] = opt_dic['maxconnections']
 
+        change = options['change']
         if 'honourlimits' in opt_dic and not opt_dic['honourlimits']:
-            options['change']['honorsSessionLimits'] = False
+            change['honorsSessionLimits'] = False
         if 'maxupspeed' in opt_dic:
-            options['change']['uploadLimit'] = opt_dic['maxupspeed']
-            options['change']['uploadLimited'] = True
+            change['uploadLimit'] = opt_dic['maxupspeed']
+            change['uploadLimited'] = True
         if 'maxdownspeed' in opt_dic:
-            options['change']['downloadLimit'] = opt_dic['maxdownspeed']
-            options['change']['downloadLimited'] = True
+            change['downloadLimit'] = opt_dic['maxdownspeed']
+            change['downloadLimited'] = True
 
         if 'ratio' in opt_dic:
-            options['change']['seedRatioLimit'] = opt_dic['ratio']
+            change['seedRatioLimit'] = opt_dic['ratio']
             if opt_dic['ratio'] == -1:
                 # seedRatioMode:
                 # 0 follow the global settings
                 # 1 override the global settings, seeding until a certain ratio
                 # 2 override the global settings, seeding regardless of ratio
-                options['change']['seedRatioMode'] = 2
+                change['seedRatioMode'] = 2
             else:
-                options['change']['seedRatioMode'] = 1
+                change['seedRatioMode'] = 1
 
         return options
 
@@ -303,7 +307,7 @@ class PluginTransmission(TransmissionBase):
 
             # Check that file is downloaded
             if downloaded and not 'file' in entry:
-                task.fail(entry, 'file missing?')
+                entry.fail('file missing?')
                 continue
 
             # Verify the temp file exists
@@ -311,16 +315,13 @@ class PluginTransmission(TransmissionBase):
                 tmp_path = os.path.join(task.manager.config_base, 'temp')
                 log.debug('entry: %s' % entry)
                 log.debug('temp: %s' % ', '.join(os.listdir(tmp_path)))
-                task.fail(entry, "Downloaded temp file '%s' doesn't exist!?" % entry['file'])
+                entry.fail("Downloaded temp file '%s' doesn't exist!?" % entry['file'])
                 continue
 
             try:
                 if downloaded:
-                    f = open(entry['file'], 'rb')
-                    try:
+                    with open(entry['file'], 'rb') as f:
                         filedump = base64.encodestring(f.read())
-                    finally:
-                        f.close()
                     r = cli.add(filedump, 30, **options['add'])
                 else:
                     r = cli.add_uri(entry['url'], timeout=30, **options['add'])
@@ -330,11 +331,12 @@ class PluginTransmission(TransmissionBase):
                 if options['change'].keys():
                     for id in r.keys():
                         cli.change(id, 30, **options['change'])
-            except TransmissionError, e:
+            except TransmissionError as e:
                 log.debug('TransmissionError', exc_info=True)
+                log.debug('Failed options dict: %s' % options)
                 msg = 'TransmissionError: %s' % e.message or 'N/A'
                 log.error(msg)
-                task.fail(entry, msg)
+                entry.fail(msg)
 
     def remove_finished(self, cli):
         # Get a list of active transfers
@@ -342,8 +344,8 @@ class PluginTransmission(TransmissionBase):
         remove_ids = []
         # Go through the list of active transfers and add finished transfers to remove_ids.
         for transfer in transfers.itervalues():
-            log.debug('Transfer "%s": status: "%s" upload ratio: %.2f seed ratio: %.2f' % \
-                (transfer.name, transfer.status, transfer.uploadRatio, transfer.seedRatioLimit))
+            log.debug('Transfer "%s": status: "%s" upload ratio: %.2f seed ratio: %.2f' %
+                      (transfer.name, transfer.status, transfer.uploadRatio, transfer.seedRatioLimit))
             if transfer.status == 'stopped' and transfer.uploadRatio >= transfer.seedRatioLimit:
                 log.info('Removing finished torrent `%s` from transmission' % transfer.name)
                 remove_ids.append(transfer.id)

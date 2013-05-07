@@ -1,5 +1,7 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
-from flexget.plugin import register_plugin
+
+from flexget.plugin import register_plugin, priority
 from flexget.utils.template import RenderError
 
 log = logging.getLogger('notifymyandroid')
@@ -41,6 +43,8 @@ class OutputNotifyMyAndroid(object):
         config.setdefault('description', '{{title}}')
         return config
 
+    # Run last to make sure other outputs are successful before sending notification
+    @priority(0)
     def on_task_output(self, task, config):
         # get the parameters
         config = self.prepare_config(config)
@@ -55,17 +59,17 @@ class OutputNotifyMyAndroid(object):
             application = entry.get('application', config['application'])
             try:
                 application = entry.render(application)
-            except RenderError, e:
+            except RenderError as e:
                 log.error('Error setting nma application: %s' % e)
             event = entry.get('event', config['event'])
             try:
                 event = entry.render(event)
-            except RenderError, e:
+            except RenderError as e:
                 log.error('Error setting nma event: %s' % e)
             description = config['description']
             try:
                 description = entry.render(description)
-            except RenderError, e:
+            except RenderError as e:
                 log.error('Error setting nma description: %s' % e)
 
             # Send the request

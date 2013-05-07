@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Unicode, DateTime, PickleType, Index
@@ -80,8 +81,8 @@ class FilterDelay(object):
             log.debug('Delaying %s' % entry['title'])
             # check if already in queue
             if not task.session.query(DelayedEntry).\
-                   filter(DelayedEntry.title == entry['title']).\
-                   filter(DelayedEntry.task == task.name).first():
+                filter(DelayedEntry.title == entry['title']).\
+                    filter(DelayedEntry.task == task.name).first():
                 delay_entry = DelayedEntry()
                 delay_entry.title = entry['title']
                 delay_entry.entry = entry

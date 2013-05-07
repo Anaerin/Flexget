@@ -1,9 +1,12 @@
+"""
+FlexGet build and development utilities - unfortunately this file is somewhat messy
+"""
+
 import os
-import re
+import sys
 from paver.easy import *
 import paver.virtual
 import paver.setuputils
-from paver import svn
 from paver.setuputils import setup, find_package_data, find_packages
 
 sphinxcontrib = False
@@ -16,9 +19,9 @@ except ImportError:
 sys.path.insert(0, '')
 
 options = environment.options
-install_requires = ['FeedParser>=5.1.2', 'SQLAlchemy >=0.7, <0.7.99', 'PyYAML', 'BeautifulSoup>=3.2, <3.3',
+install_requires = ['FeedParser>=5.1.3', 'SQLAlchemy >=0.7, <0.7.99', 'PyYAML', 'BeautifulSoup>=3.2, <3.3',
                     'beautifulsoup4>=4.1, <4.2', 'html5lib>=0.11', 'PyRSS2Gen', 'pynzb', 'progressbar', 'jinja2',
-                    'flask', 'cherrypy', 'requests>=0.14, <0.15', 'python-dateutil!=2.0']
+                    'flask', 'cherrypy', 'requests>=1.0, <1.99', 'python-dateutil!=2.0']
 if sys.version_info < (2, 7):
     # argparse is part of the standard library in python 2.7+
     install_requires.append('argparse')
@@ -33,8 +36,9 @@ if sys.platform.startswith('win'):
 
 setup(
     name='FlexGet',
-    version='1.0', # our tasks append the r1234 (current svn revision) to the version number
-    description='FlexGet is a program aimed to automate downloading or processing content (torrents, podcasts, etc.) from different sources like RSS-feeds, html-pages, various sites and more.',
+    version='1.0',  # our tasks append the .1234 (current build number) to the version number
+    description='FlexGet is a program aimed to automate downloading or processing content (torrents, podcasts, etc.) '
+                'from different sources like RSS-feeds, html-pages, various sites and more.',
     author='Marko Koivusalo',
     author_email='marko.koivusalo@gmail.com',
     license='MIT',
@@ -42,14 +46,14 @@ setup(
     install_requires=install_requires,
     packages=find_packages(exclude=['tests']),
     package_data=find_package_data('flexget', package='flexget',
-                                   exclude=['FlexGet.egg-info', '*.pyc'],
-                                   only_in_packages=False), # NOTE: the exclude does not seem to work
+        exclude=['FlexGet.egg-info', '*.pyc'],
+        only_in_packages=False),  # NOTE: the exclude does not seem to work
     zip_safe=False,
     test_suite='nose.collector',
     extras_require={
-        'memusage':     ['guppy'],
-        'NZB':          ['pynzb'],
-        'TaskTray':     ['pywin32'],
+        'memusage': ['guppy'],
+        'NZB': ['pynzb'],
+        'TaskTray': ['pywin32'],
     },
     entry_points=entry_points
 )
@@ -60,7 +64,8 @@ options(
     ),
     virtualenv=Bunch(
         paver_command_line='develop',
-        unzip_setuptools=True
+        unzip_setuptools=True,
+        distribute=True
     ),
     # sphinxcontrib.paverutils
     sphinx=Bunch(
@@ -71,16 +76,9 @@ options(
     ),
 )
 
-def freplace(name, what_str, with_str):
-    """Replaces a :what_str: with :with_str: in file :name:"""
-    import fileinput
-    for line in fileinput.FileInput(name, inplace=1):
-        if what_str in line:
-            line = line.replace(what_str, with_str)
-        print line,
 
 def set_init_version(ver):
-    """Replaces the version with :ver: in __init__.py"""
+    """Replaces the version with ``ver`` in __init__.py"""
     import fileinput
     for line in fileinput.FileInput('flexget/__init__.py', inplace=1):
         if line.startswith('__version__ = '):
@@ -120,7 +118,8 @@ def test(options):
 @task
 def clean():
     """Cleans up the virtualenv"""
-    import os, glob
+    import os
+    import glob
 
     for p in ('bin', 'Scripts', 'build', 'dist', 'include', 'lib', 'man',
               'share', 'FlexGet.egg-info', 'paver-minilib.zip', 'setup.py'):
@@ -137,12 +136,16 @@ def clean():
 
 @task
 @cmdopts([
-    ('dist-dir=', 'd', 'directory to put final built distributions in')
+    ('dist-dir=', 'd', 'directory to put final built distributions in'),
+    ('revision=', 'r', 'minor revision number of this build')
 ], share_with=['make_egg'])
 def sdist(options):
     """Build tar.gz distribution package"""
 
-    revision = svn.info().get('last_changed_rev')
+    if not options.sdist.get('revision'):
+        print 'Revision number required.'
+        sys.exit(1)
+    revision = options.sdist.pop('revision')
 
     print 'Revision: %s' % revision
 
@@ -162,7 +165,7 @@ def sdist(options):
     for pyc in path('tests/').files('*.pyc'):
         pyc.remove()
 
-    ver = '%sr%s' % (options['version'], revision)
+    ver = '%s.%s' % (options['version'], revision)
 
     print 'Building %s' % ver
 
@@ -178,18 +181,22 @@ def sdist(options):
         call_task(t)
 
     # restore version ...
-    set_init_version('{subversion}')
+    set_init_version('{git}')
 
 
 @task
 @cmdopts([
-    ('dist-dir=', 'd', 'directory to put final built distributions in')
+    ('dist-dir=', 'd', 'directory to put final built distributions in'),
+    ('revision=', 'r', 'minor revision number of this build')
 ], share_with=['sdist'])
 def make_egg(options):
     # naming this task to bdist_egg will make egg installation fail
 
-    revision = svn.info().get('last_changed_rev')
-    ver = '%sr%s' % (options['version'], revision)
+    if not options.make_egg.get('revision'):
+        print 'Revision number required.'
+        sys.exit(1)
+    revision = options.make_egg.revision
+    ver = '%s.%s' % (options['version'], revision)
 
     # hack version number into setup( ... options='1.0-svn' ...)
     from paver import tasks
@@ -209,7 +216,7 @@ def make_egg(options):
         call_task(t)
 
     # restore version ...
-    set_init_version('{subversion}')
+    set_init_version('{git}')
 
     # restore egg info from backup
     print 'Removing FlexGet.egg-info ...'
@@ -245,6 +252,11 @@ def docs():
         print 'ERROR: requires sphinxcontrib-paverutils'
         sys.exit(1)
     from paver import tasks
+    if not os.path.exists('build'):
+        os.mkdir('build')
+    if not os.path.exists(os.path.join('build', 'sphinx')):
+        os.mkdir(os.path.join('build', 'sphinx'))
+
     setup_section = tasks.environment.options.setdefault("sphinx", Bunch())
     setup_section.update(outdir=options.docs.get('docs_dir', 'build/sphinx'))
     call_task('html')
@@ -261,7 +273,7 @@ def release(options):
 
     if options.release.get('type') not in ['src', 'egg']:
         print 'Invalid --type, must be src or egg'
-        return
+        sys.exit(1)
 
     print 'Cleaning build...'
     for p in ['build']:
@@ -277,7 +289,6 @@ def release(options):
     if not options.release.get('no_tests'):
         if not test():
             print 'Unit tests did not pass'
-            import sys
             sys.exit(1)
 
     if options.release.get('type') == 'egg':
@@ -290,13 +301,13 @@ def release(options):
 
 @task
 def install_tools():
-    """Install development / hudson tools and dependencies"""
+    """Install development / jenkins tools and dependencies"""
 
     try:
         import pip
     except:
         print 'FATAL: Unable to import pip, please install it and run this again!'
-        return
+        sys.exit(1)
 
     try:
         import sphinxcontrib
@@ -304,34 +315,7 @@ def install_tools():
     except:
         pip.main(['install', 'sphinxcontrib-paverutils'])
 
-    try:
-        import pylint
-        print 'Pylint INSTALLED'
-    except:
-        pip.main(['install', 'pylint']) # OR instead of pylint logilab.pylintinstaller ?
-
-    try:
-        import coverage
-        print 'Coverage INSTALLED'
-    except:
-        pip.main(['install', 'coverage'])
-
-    try:
-        import nose
-    except:
-        pip.main(['install', 'nose>=0.11'])
-
-    try:
-        import nosexcover
-        print 'Nose-xcover INSTALLED'
-    except:
-        pip.main(['install', 'http://github.com/cmheisel/nose-xcover/zipball/master'])
-
-    try:
-        import pep8
-        print 'pep8 INSTALLED'
-    except:
-        pip.main(['install', 'pep8'])
+    pip.main(['install', '-r', 'jenkins-requirements.txt'])
 
 
 @task
@@ -351,13 +335,47 @@ def pep8(args):
         import pep8
     except:
         print 'Run bin/paver install_tools'
-        return
+        sys.exit(1)
 
     # Ignoring certain errors
     ignore = [
-        'E711', 'E712', # These are comparisons to singletons i.e. == False, and == None. We need these for sqlalchemy.
-        'W291', 'W293', 'E261'
+        'E711', 'E712',  # These are comparisons to singletons i.e. == False, and == None. We need these for sqlalchemy.
+        'W291', 'W293', 'E261',
+        'E128'  # E128 continuation line under-indented for visual indent
     ]
     styleguide = pep8.StyleGuide(show_source=True, ignore=ignore, repeat=1, max_line_length=120,
-        parse_argv=args)
+                                 parse_argv=args)
     styleguide.input_dir('flexget')
+
+
+@task
+def bootstrap():
+    """
+    Current paver bootstrap task ignores the distribute option, do some hackery to fix that.
+    This should not be needed after next release of paver (>1.1.1)
+
+    This also prevents --system-site-packages option from being hard coded into bootstrap.py
+    https://github.com/paver/paver/issues/87
+    """
+    import textwrap
+    vopts = options.virtualenv
+    more_text = ""
+    if vopts.get('distribute') is not None:
+        more_text = textwrap.dedent("""
+        def more_adjust_options(orig_adjust_options):
+            def adjust_options(options, args):
+                # Don't let paver overwrite system_site_packages options specified by the user
+                ssp = options.system_site_packages
+                orig_adjust_options(options, args)
+                options.system_site_packages = ssp
+                options.use_distribute = %s
+            return adjust_options
+        adjust_options = more_adjust_options(adjust_options)
+        """ % bool(vopts.get('distribute')))
+
+    paver.virtual._create_bootstrap(vopts.get("script_name", "bootstrap.py"),
+                                    vopts.get("packages_to_install", []),
+                                    vopts.get("paver_command_line", None),
+                                    dest_dir=vopts.get("dest_dir", '.'),
+                                    unzip_setuptools=vopts.get("unzip_setuptools", False),
+                                    more_text=more_text)

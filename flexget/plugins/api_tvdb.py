@@ -1,14 +1,18 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import urllib
 import os
 import posixpath
 from datetime import datetime, timedelta
 import random
+
 from BeautifulSoup import BeautifulStoneSoup
+
 from sqlalchemy import Column, Integer, Float, String, Unicode, Boolean, DateTime, func
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.orm import relation
 from requests import RequestException
+
 from flexget import schema
 from flexget.utils.tools import decode_html
 from flexget.utils.requests import Session as ReqSession
@@ -133,7 +137,7 @@ class TVDBSeries(TVDBContainer, Base):
         url = get_mirror() + api_key + '/series/%s/%s.xml' % (self.id, language)
         try:
             data = requests.get(url).content
-        except RequestException, e:
+        except RequestException as e:
             raise LookupError('Request failed %s' % url)
         result = BeautifulStoneSoup(data, convertEntities=BeautifulStoneSoup.HTML_ENTITIES).find('series')
         if result:
@@ -202,7 +206,7 @@ class TVDBEpisode(TVDBContainer, Base):
         url = get_mirror() + api_key + '/episodes/%s/%s.xml' % (self.id, language)
         try:
             data = requests.get(url).content
-        except RequestException, e:
+        except RequestException as e:
             raise LookupError('Request failed %s' % url)
         result = BeautifulStoneSoup(data, convertEntities=BeautifulStoneSoup.HTML_ENTITIES).find('episode')
         if result:
@@ -230,7 +234,7 @@ def find_series_id(name):
     url = server + 'GetSeries.php?seriesname=%s&language=%s' % (urllib.quote(name), language)
     try:
         page = requests.get(url).content
-    except RequestException, e:
+    except RequestException as e:
         raise LookupError("Unable to get search results for %s: %s" % (name, e))
     xmldata = BeautifulStoneSoup(page, convertEntities=BeautifulStoneSoup.HTML_ENTITIES).data
     if not xmldata:
@@ -280,7 +284,7 @@ def lookup_series(name=None, tvdb_id=None, only_cached=False, session=None):
             log.verbose('Data for %s has expired, refreshing from tvdb' % series.seriesname)
             try:
                 series.update()
-            except LookupError, e:
+            except LookupError as e:
                 log.warning('Error while updating from tvdb (%s), using cached data.' % e.message)
         else:
             log.debug('Series %s information restored from cache.' % id_str())
@@ -316,7 +320,8 @@ def lookup_series(name=None, tvdb_id=None, only_cached=False, session=None):
 
 
 @with_session
-def lookup_episode(name=None, seasonnum=None, episodenum=None, absolutenum=None, airdate=None, tvdb_id=None, only_cached=False, session=None):
+def lookup_episode(name=None, seasonnum=None, episodenum=None, absolutenum=None, airdate=None,
+                   tvdb_id=None, only_cached=False, session=None):
     # First make sure we have the series data
     series = lookup_series(name=name, tvdb_id=tvdb_id, only_cached=only_cached, session=session)
     if not series:
@@ -326,27 +331,27 @@ def lookup_episode(name=None, seasonnum=None, episodenum=None, absolutenum=None,
         airdatestring = airdate.strftime('%Y-%m-%d')
         ep_description = '%s.%s' % (series.seriesname, airdatestring)
         episode = session.query(TVDBEpisode).filter(TVDBEpisode.series_id == series.id).\
-                                             filter(TVDBEpisode.firstaired == airdate).first()
+            filter(TVDBEpisode.firstaired == airdate).first()
         url = get_mirror() + ('GetEpisodeByAirDate.php?apikey=%s&seriesid=%d&airdate=%s&language=%s' %
                              (api_key, series.id, airdatestring, language))
     elif absolutenum:
         ep_description = '%s.%d' % (series.seriesname, absolutenum)
         episode = session.query(TVDBEpisode).filter(TVDBEpisode.series_id == series.id).\
-                                             filter(TVDBEpisode.absolute_number == absolutenum).first()
+            filter(TVDBEpisode.absolute_number == absolutenum).first()
         url = get_mirror() + api_key + '/series/%d/absolute/%s/%s.xml' % (series.id, absolutenum, language)
     else:
         ep_description = '%s.S%sE%s' % (series.seriesname, seasonnum, episodenum)
         # See if we have this episode cached
         episode = session.query(TVDBEpisode).filter(TVDBEpisode.series_id == series.id).\
-                                             filter(TVDBEpisode.seasonnumber == seasonnum).\
-                                             filter(TVDBEpisode.episodenumber == episodenum).first()
+            filter(TVDBEpisode.seasonnumber == seasonnum).\
+            filter(TVDBEpisode.episodenumber == episodenum).first()
         url = get_mirror() + api_key + '/series/%d/default/%d/%d/%s.xml' % (series.id, seasonnum, episodenum, language)
     if episode:
         if episode.expired and not only_cached:
             log.info('Data for %r has expired, refreshing from tvdb' % episode)
             try:
                 episode.update()
-            except LookupError, e:
+            except LookupError as e:
                 log.warning('Error while updating from tvdb (%s), using cached data.' % e.message)
         else:
             log.debug('Using episode info for %s from cache.' % ep_description)
@@ -372,7 +377,7 @@ def lookup_episode(name=None, seasonnum=None, episodenum=None, absolutenum=None,
                         episode = TVDBEpisode(ep_data)
                     series.episodes.append(episode)
                     session.merge(series)
-        except RequestException, e:
+        except RequestException as e:
             raise LookupError('Error looking up episode from TVDb (%s)' % e)
     if episode:
         # Access the series attribute to force it to load before returning
@@ -419,7 +424,7 @@ def mark_expired(session=None):
         if not isinstance(content, basestring):
             raise Exception('expected string, got %s' % type(content))
         updates = BeautifulStoneSoup(content, convertEntities=BeautifulStoneSoup.HTML_ENTITIES).data
-    except RequestException, e:
+    except RequestException as e:
         log.error('Could not get update information from tvdb: %s' % e)
         return
 

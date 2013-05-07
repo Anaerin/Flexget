@@ -1,6 +1,6 @@
+from __future__ import unicode_literals, division, absolute_import
 from flexget import validator
 from tests.util import maketemp
-import yaml
 
 
 class TestValidator(object):

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import hashlib
 import urllib2
@@ -32,15 +33,15 @@ class TraktAcquired(object):
                     series = found.setdefault(entry['series_name'], {})
                     if not series:
                         # If this is the first episode found from this series, set the parameters
-                        series['title'] = entry.get('series_name_tvdb', entry['series_name'])
+                        series['title'] = entry.get('tvdb_series_name', entry['series_name'])
                         if entry.get('imdb_id'):
                             series['imdb_id'] = entry['imdb_id']
-                        if entry.get('thetvdb_id'):
-                            series['tvdb_id'] = entry['thetvdb_id']
+                        if entry.get('tvdb_id'):
+                            series['tvdb_id'] = entry['tvdb_id']
                         series['episodes'] = []
                     episode = {'season': entry['series_season'], 'episode': entry['series_episode']}
                     series['episodes'].append(episode)
-                    log.debug('Marking %s S%02dE%02d for submission to trakt.tv library.' % \
+                    log.debug('Marking %s S%02dE%02d for submission to trakt.tv library.' %
                               (entry['series_name'], entry['series_season'], entry['series_episode']))
             else:
                 # Check entry is a movie
@@ -77,7 +78,7 @@ class TraktAcquired(object):
             item.update({'username': config['username'], 'password': config['password']})
             try:
                 self.post_json_to_trakt(post_url, item)
-            except (urllib2.HTTPError, urllib2.URLError), e:
+            except (urllib2.HTTPError, urllib2.URLError) as e:
                 if hasattr(e, 'code'):
                     if e.code == 404:
                         # Remove some info from posted json and print the rest to aid debugging

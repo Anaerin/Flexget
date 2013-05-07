@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 from flexget.plugin import register_plugin, priority
 from flexget.plugins.filter.seen import FilterSeen
 
@@ -37,7 +38,7 @@ class FilterSeenInfoHash(FilterSeen):
             if 'torrent_info_hash' in entry:
                 infohash = entry['torrent_info_hash']
                 if infohash in accepted_infohashes:
-                    task.reject(entry, 'Already accepted torrent with this infohash once for this task')
+                    entry.reject('Already accepted torrent with this infohash once for this task')
                 else:
                     accepted_infohashes.add(infohash)
 

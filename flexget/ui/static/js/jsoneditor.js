@@ -111,8 +111,8 @@ JSONEditor = function (container, options, json) {
 JSONEditor.prototype._setOptions = function (options) {
     this.options = {
         'search': true,
-        'history': true,
-        'rootNodeName': 'object'
+        'history': true
+
     };
 
     // copy all options

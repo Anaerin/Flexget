@@ -1,7 +1,10 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import re
 from datetime import datetime, timedelta
+
 from dateutil.parser import parse as parsedate
+
 from flexget.utils.titles.parser import TitleParser, ParseWarning
 from flexget.utils import qualities
 from flexget.utils.tools import ReList
@@ -29,24 +32,24 @@ class SeriesParser(TitleParser):
     separators = '[!/+,:;|~ x-]'
     roman_numeral_re = 'X{0,3}(?:IX|XI{0,4}|VI{0,4}|IV|V|I{1,4})'
     english_numbers = ['one', 'two', 'three', 'four', 'five', 'six', 'seven',
-            'eight', 'nine', 'ten']
+                       'eight', 'nine', 'ten']
 
     # Make sure none of these are found embedded within a word or other numbers
     ep_regexps = ReList([TitleParser.re_not_in_word(regexp) for regexp in [
         '(?:series|season|s)\s?(\d{1,3})(?:\s(?:.*\s)?)?(?:episode|ep|e|part|pt)\s?(\d{1,3}|%s)(?:\s?e?(\d{1,2}))?' %
-            roman_numeral_re,
+        roman_numeral_re,
         '(?:series|season)\s?(\d{1,3})\s(\d{1,3})\s?of\s?(?:\d{1,3})',
         '(\d{1,2})\s?x\s?(\d+)(?:\s(\d{1,2}))?',
         '(\d{1,3})\s?of\s?(?:\d{1,3})',
         '(?:episode|ep|part|pt)\s?(\d{1,3}|%s)' % roman_numeral_re,
         'part\s(%s)' % '|'.join(map(str, english_numbers))]])
     unwanted_ep_regexps = ReList([
-         '(\d{1,3})\s?x\s?(0+)[^1-9]', # 5x0
-         'S(\d{1,3})D(\d{1,3})', # S3D1
-         '(\d{1,3})\s?x\s?(all)', # 1xAll
-         'season(?:s)?\s?\d\s?(?:&\s?\d)?[\s-]*(?:complete|full)',
-         'seasons\s(\d\s){2,}',
-         'disc\s\d'])
+        '(\d{1,3})\s?x\s?(0+)[^1-9]',  # 5x0
+        'S(\d{1,3})D(\d{1,3})',  # S3D1
+        '(\d{1,3})\s?x\s?(all)',  # 1xAll
+        'season(?:s)?\s?\d\s?(?:&\s?\d)?[\s-]*(?:complete|full)',
+        'seasons\s(\d\s){2,}',
+        'disc\s\d'])
     # Make sure none of these are found embedded within a word or other numbers
     date_regexps = ReList([TitleParser.re_not_in_word(regexp) for regexp in [
         '(\d{2,4})%s(\d{1,2})%s(\d{1,2})' % (separators, separators),
@@ -61,9 +64,9 @@ class SeriesParser(TitleParser):
     clean_regexps = ReList(['\[.*?\]', '\(.*?\)'])
     # ignore prefix regexps must be passive groups with 0 or 1 occurrences  eg. (?:prefix)?
     ignore_prefixes = [
-            '(?:\[[^\[\]]*\])', # ignores group names before the name, eg [foobar] name
-            '(?:HD.720p?:)',
-            '(?:HD.1080p?:)']
+        '(?:\[[^\[\]]*\])',  # ignores group names before the name, eg [foobar] name
+        '(?:HD.720p?:)',
+        '(?:HD.1080p?:)']
 
     def __init__(self, name='', identified_by='auto', name_regexps=None, ep_regexps=None, date_regexps=None,
                  sequence_regexps=None, id_regexps=None, strict_name=False, allow_groups=None, allow_seasonless=True,
@@ -72,18 +75,23 @@ class SeriesParser(TitleParser):
 
         :param string name: Name of the series parser is going to try to parse.
 
-        :param string identified_by: What kind of episode numbering scheme is expected, valid values are ep, date,
-            sequence, id and auto (default).
-        :param list name_regexps: Regexps for name matching or None (default), by default regexp is generated from name.
-        :param list ep_regexps: Regexps detecting episode,season format. Given list is prioritized over built-in regexps.
-        :param list date_regexps: Regexps detecting date format. Given list is prioritized over built-in regexps.
-        :param list sequence_regexps: Regexps detecting sequence format. Given list is prioritized over built-in regexps.
-        :param list id_regexps: Custom regexps detecting id format. Given list is prioritized over built in regexps.
+        :param string identified_by: What kind of episode numbering scheme is expected,
+            valid values are ep, date, sequence, id and auto (default).
+        :param list name_regexps: Regexps for name matching or None (default),
+            by default regexp is generated from name.
+        :param list ep_regexps: Regexps detecting episode,season format.
+            Given list is prioritized over built-in regexps.
+        :param list date_regexps: Regexps detecting date format.
+            Given list is prioritized over built-in regexps.
+        :param list sequence_regexps: Regexps detecting sequence format.
+            Given list is prioritized over built-in regexps.
+        :param list id_regexps: Custom regexps detecting id format.
+            Given list is prioritized over built in regexps.
         :param boolean strict_name: If True name must be immediately be followed by episode identifier.
         :param list allow_groups: Optionally specify list of release group names that are allowed.
         :param date_dayfirst: Prefer day first notation of dates when there are multiple possible interpretations.
         :param date_yearfirst: Prefer year first notation of dates when there are multiple possible interpretations.
-        This will also populate attribute `group`.
+            This will also populate attribute `group`.
         """
 
         self.name = name
@@ -161,7 +169,7 @@ class SeriesParser(TitleParser):
             # Turn on exact mode for series ending with a parenthetical,
             # so that 'Show (US)' is not accepted as 'Show (UK)'
             self.strict_name = True
-        res = '^' + ignore + blank + '*' + '(' + res + ')' + blank + '+'
+        res = '^' + ignore + blank + '*' + '(' + res + ')' + blank + '*'
         return res
 
     def parse(self, data=None, field=None, quality=None):
@@ -172,8 +180,8 @@ class SeriesParser(TitleParser):
         if data:
             self.data = data
         if not self.name or not self.data:
-            raise Exception('SeriesParser initialization error, name: %s data: %s' % \
-               (repr(self.name), repr(self.data)))
+            raise Exception('SeriesParser initialization error, name: %s data: %s' %
+                            (repr(self.name), repr(self.data)))
 
         name = self.remove_dirt(self.name)
 
@@ -228,7 +236,7 @@ class SeriesParser(TitleParser):
                     break
             else:
                 log.debug('%s is not from groups %s' % (self.data, self.allow_groups))
-                return # leave invalid
+                return  # leave invalid
 
         # Find quality and clean from data
         log.debug('parsing quality ->')
@@ -375,7 +383,7 @@ class SeriesParser(TitleParser):
         # No id found, check if this is a special
         if self.special:
             # Attempt to set id as the title of the special
-            self.id = data_stripped
+            self.id = data_stripped or 'special'
             self.id_type = 'special'
             self.valid = True
             log.debug('found special, setting id to \'%s\'' % self.id)
@@ -486,7 +494,8 @@ class SeriesParser(TitleParser):
                     else:
                         episode = int(episode)
                 except ValueError:
-                    log.critical('Invalid episode number match %s returned with regexp `%s` for %s' % (match.groups(), ep_re.pattern, self.data))
+                    log.critical('Invalid episode number match %s returned with regexp `%s` for %s' %
+                                 (match.groups(), ep_re.pattern, self.data))
                     raise
                 end_episode = None
                 if len(matches) == 3 and matches[2]:

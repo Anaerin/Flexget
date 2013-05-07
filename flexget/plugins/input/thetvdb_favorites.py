@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import urllib2
 import re
@@ -116,14 +117,14 @@ class InputThetvdbFavorites(object):
             # Lookup the series name from the id
             try:
                 series = lookup_series(tvdb_id=series_id)
-            except LookupError, e:
+            except LookupError as e:
                 log.error('Error looking up %s from thetvdb: %s' % (series_id, e.message))
             else:
                 series_name = series.seriesname
                 if config.get('strip_dates'):
                     # Remove year from end of series name if present
                     series_name = re.sub(r'\s+\(\d{4}\)$', '', series_name)
-                entries.append(Entry(series_name, '', thetvdb_id=series.id))
+                entries.append(Entry(series_name, '', tvdb_id=series.id))
         return entries
 
 register_plugin(InputThetvdbFavorites, 'thetvdb_favorites', api_ver=2)

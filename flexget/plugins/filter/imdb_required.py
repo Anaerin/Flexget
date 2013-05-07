@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, priority, get_plugin_by_name, PluginError
 
@@ -24,8 +25,8 @@ class FilterImdbRequired(object):
             try:
                 get_plugin_by_name('imdb_lookup').instance.lookup(entry)
             except PluginError:
-                task.reject(entry, 'imdb required')
+                entry.reject('imdb required')
             if 'imdb_url' not in entry and 'imdb_id' not in entry:
-                task.reject(entry, 'imdb required')
+                entry.reject('imdb required')
 
 register_plugin(FilterImdbRequired, 'imdb_required')

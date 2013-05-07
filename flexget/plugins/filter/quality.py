@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, priority
 import flexget.utils.qualities as quals
@@ -31,9 +32,9 @@ class FilterQuality(object):
         reqs = [quals.Requirements(req) for req in config]
         for entry in task.entries:
             if not entry.get('quality'):
-                task.reject(entry, 'Entry doesn\'t have a quality')
+                entry.reject('Entry doesn\'t have a quality')
                 continue
             if not any(req.allows(entry['quality']) for req in reqs):
-                task.reject(entry, '%s does not match quality requirement %s' % (entry['quality'], reqs))
+                entry.reject('%s does not match quality requirement %s' % (entry['quality'], reqs))
 
 register_plugin(FilterQuality, 'quality', api_ver=2)

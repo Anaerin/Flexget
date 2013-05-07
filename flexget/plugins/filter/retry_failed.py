@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, Unicode, DateTime
@@ -92,7 +93,7 @@ class PluginFailed(object):
         try:
             # query item's existence
             item = failed.query(FailedEntry).filter(FailedEntry.title == entry['title']).\
-                                             filter(FailedEntry.url == entry['original_url']).first()
+                filter(FailedEntry.url == entry['original_url']).first()
             if not item:
                 item = FailedEntry(entry['title'], entry['original_url'], reason)
             else:
@@ -175,10 +176,10 @@ class FilterRetryFailed(object):
         max_count = config['max_retries']
         for entry in task.entries:
             item = task.session.query(FailedEntry).filter(FailedEntry.title == entry['title']).\
-                                            filter(FailedEntry.url == entry['original_url']).\
-                                            filter(FailedEntry.count > max_count).first()
+                filter(FailedEntry.url == entry['original_url']).\
+                filter(FailedEntry.count > max_count).first()
             if item:
-                task.reject(entry, 'Has already failed %s times in the past' % item.count)
+                entry.reject('Has already failed %s times in the past' % item.count)
 
     def on_task_exit(self, task, config):
         if config is False:
@@ -188,7 +189,7 @@ class FilterRetryFailed(object):
         retry_time_multiplier = config['retry_time_multiplier']
         for entry in task.failed:
             item = task.session.query(FailedEntry).filter(FailedEntry.title == entry['title']).\
-                                            filter(FailedEntry.url == entry['original_url']).first()
+                filter(FailedEntry.url == entry['original_url']).first()
             if item:
                 # Do not count the failure on this run when adding additional retry time
                 fail_count = item.count - 1
@@ -205,8 +206,8 @@ class FilterRetryFailed(object):
                 self.backlog.add_backlog(task, entry, amount=retry_time)
             if retry_time:
                 fail_reason = item.reason if item else entry.get('reason', 'unknown')
-                task.reject(entry, reason='Waiting before trying failed entry again. (failure reason: %s)' %
-                                          fail_reason, remember_time=retry_time)
+                entry.reject(reason='Waiting before trying failed entry again. (failure reason: %s)' %
+                    fail_reason, remember_time=retry_time)
                 # Cause a task rerun, to look for alternate releases
                 task.rerun()
 

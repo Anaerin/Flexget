@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 from tests import FlexGetBase
 
 
@@ -13,7 +14,7 @@ class TestRememberRejected(FlexGetBase):
     def test_remember_rejected(self):
         self.execute_task('test')
         entry = self.task.find_entry(title='title 1')
-        self.task.reject(entry, remember=True)
+        entry.reject(remember=True)
         self.execute_task('test')
         assert self.task.find_entry('rejected', title='title 1', rejected_by='remember_rejected'),\
             'remember_rejected should have rejected'

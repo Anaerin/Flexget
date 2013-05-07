@@ -1,10 +1,14 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import datetime
 import os
+
 from sqlalchemy import Column, Integer, String, DateTime
+
 from flexget import schema
 from flexget.plugin import register_plugin, PluginWarning
 from flexget.utils.sqlalchemy_utils import table_columns, table_add_column
+from flexget.utils.template import render_from_entry, get_template
 
 log = logging.getLogger('make_rss')
 Base = schema.versioned_base('make_rss', 0)
@@ -76,7 +80,7 @@ class OutputRSS(object):
         days: 2
         items: 10
 
-    Generate RSS that will containg last two days and no more than 10 items.
+    Generate RSS that will containing last two days and no more than 10 items.
 
     Example 2::
 
@@ -122,14 +126,16 @@ class OutputRSS(object):
         """Validate given configuration"""
         from flexget import validator
         root = validator.factory()
-        root.accept('text') # TODO: path / file
+        root.accept('text')  # TODO: path / file
         rss = root.accept('dict')
         rss.accept('text', key='file', required=True)
         rss.accept('integer', key='days')
         rss.accept('integer', key='items')
         rss.accept('boolean', key='history')
         rss.accept('text', key='rsslink')
-        rss.accept('text', key='encoding') # TODO: only valid choices
+        rss.accept('text', key='encoding')  # TODO: only valid choices
+        rss.accept('text', key='title')
+        rss.accept('text', key='description')
         links = rss.accept('list', key='link')
         links.accept('text')
         return root
@@ -147,6 +153,8 @@ class OutputRSS(object):
         config.setdefault('history', True)
         config.setdefault('encoding', 'iso-8859-1')
         config.setdefault('link', ['imdb_url', 'input_url'])
+        config.setdefault('title', '{{title}} (from {{task}})')
+        config.setdefault('template', 'default')
         # add url as last resort
         config['link'].append('url')
         return config
@@ -170,26 +178,18 @@ class OutputRSS(object):
         # save entries into db for RSS generation
         for entry in task.accepted:
             rss = RSSEntry()
-            rss.title = entry['title']
+            rss.title = entry.render(config['title'])
             for field in config['link']:
                 if field in entry:
                     rss.link = entry[field]
                     break
 
-            # TODO: just a quick hack, implement better :)
-            description = ''
-            if 'imdb_score' in entry:
-                description += 'Score: %s / 10 | ' % entry['imdb_score']
-            if 'imdb_votes' in entry:
-                description += 'Votes: %s | ' % entry['imdb_votes']
-            if 'imdb_genres' in entry:
-                description += 'Genres: %s | ' % ', '.join(entry['imdb_genres'])
-            if 'imdb_plot_outline' in entry:
-                description += 'Description: %s' % entry['imdb_plot_outline']
-            else:
-                description += entry.get('description', '')
-
-            rss.description = description
+            # TODO: better exception handling
+            try:
+                rss.description = render_from_entry(get_template(config['template'], 'rss'), entry)
+            except:
+                log.error("Error while rendering entry %s, falling back to plain title", entry)
+                rss.description = entry['title'] + ' - (Render Error)'
             rss.file = config['file']
 
             # TODO: check if this exists and suggest disabling history if it does since it shouldn't happen normally ...
@@ -228,11 +228,10 @@ class OutputRSS(object):
                     add = False
             if add:
                 # add into generated feed
-                gen = {}
-                gen['title'] = db_item.title
-                gen['description'] = db_item.description
-                gen['link'] = db_item.link
-                gen['pubDate'] = db_item.published
+                gen = {'title': db_item.title,
+                       'description': db_item.description,
+                       'link': db_item.link,
+                       'pubDate': db_item.published}
                 log.trace('Adding %s into rss %s' % (gen['title'], config['file']))
                 rss_items.append(PyRSS2Gen.RSSItem(**gen))
             else:
@@ -250,15 +249,17 @@ class OutputRSS(object):
                              items=rss_items)
         # write rss
         fn = os.path.expanduser(config['file'])
-        try:
-            rss.write_xml(open(fn, 'w'), encoding=config['encoding'])
-        except LookupError:
-            log.critical('Unknown encoding %s' % config['encoding'])
-            return
-        except IOError:
-            # TODO: plugins cannot raise PluginWarnings in terminate event ..
-            log.critical('Unable to write %s' % fn)
-            return
+        with open(fn, 'w') as file:
+            try:
+                log.verbose('Writing output rss to %s' % fn)
+                rss.write_xml(file, encoding=config['encoding'])
+            except LookupError:
+                log.critical('Unknown encoding %s' % config['encoding'])
+                return
+            except IOError:
+                # TODO: plugins cannot raise PluginWarnings in terminate event ..
+                log.critical('Unable to write %s' % fn)
+                return
         self.written[config['file']] = True
 
 

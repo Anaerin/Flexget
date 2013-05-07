@@ -7,6 +7,7 @@ You can safely use task.simple_persistence and manager.persist, if we implement 
 can replace underlying mechanism in single point (and provide transparent switch).
 """
 
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from datetime import datetime
 import pickle
@@ -32,7 +33,7 @@ def upgrade(ver, session):
         for row in session.execute(select([table.c.id, table.c.plugin, table.c.key, table.c.value])):
             try:
                 p = pickle.loads(row['value'])
-            except Exception, e:
+            except Exception as e:
                 log.warning('Couldn\'t load %s:%s removing from db: %s' % (row['plugin'], row['key'], e))
                 session.execute(table.delete().where(table.c.id == row['id']))
         ver = 1
@@ -78,7 +79,7 @@ class SimplePersistence(DictMixin):
     def __setitem__(self, key, value):
         session = self.session or Session()
         skv = session.query(SimpleKeyValue).filter(SimpleKeyValue.task == self.taskname).\
-                filter(SimpleKeyValue.plugin == self.plugin).filter(SimpleKeyValue.key == key).first()
+            filter(SimpleKeyValue.plugin == self.plugin).filter(SimpleKeyValue.key == key).first()
         if skv:
             # update existing
             log.debug('updating key %s value %s' % (key, repr(value)))
@@ -115,7 +116,7 @@ class SimplePersistence(DictMixin):
     def keys(self):
         session = self.session or Session()
         query = session.query(SimpleKeyValue.key).filter(SimpleKeyValue.task == self.taskname).\
-             filter(SimpleKeyValue.plugin == self.plugin).all()
+            filter(SimpleKeyValue.plugin == self.plugin).all()
         if query:
             return [item.key for item in query]
         else:

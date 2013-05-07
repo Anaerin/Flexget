@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 import csv
 import re
@@ -22,7 +23,7 @@ class ImdbList(object):
         from flexget import validator
         root = validator.factory('dict')
         root.accept('regexp_match', key='user_id').\
-             accept(USER_ID_RE, message='user_id must be in the form urXXXXXXX')
+            accept(USER_ID_RE, message='user_id must be in the form urXXXXXXX')
         root.accept('text', key='username')
         root.accept('text', key='password')
         root.accept('text', key='list', required=True)
@@ -48,12 +49,13 @@ class ImdbList(object):
                     log.warning('Unable to find required info for imdb login, maybe their login method has changed.')
                 # Now we do the actual login with appropriate parameters
                 r = sess.post('https://secure.imdb.com/register-imdb/login', data=params, raise_status=False)
-            except requests.RequestException, e:
+            except requests.RequestException as e:
                 raise PluginError('Unable to login to imdb: %s' % e.message)
 
             # IMDb redirects us upon a successful login.
-            if r.status_code != 302:
-                log.warning('It appears logging in to IMDb was unsuccessful.')
+            # removed - doesn't happen always?
+            # if r.status_code != 302:
+            #     log.warning('It appears logging in to IMDb was unsuccessful.')
 
             # try to automatically figure out user_id from watchlist redirect url
             if not 'user_id' in config:
@@ -81,9 +83,9 @@ class ImdbList(object):
             log.debug('mime_type: %s' % mime_type)
             if mime_type != 'text/csv':
                 raise PluginError('Didn\'t get CSV export as response. Probably specified list `%s` does not exist.'
-                    % config['list'])
+                                  % config['list'])
             csv_rows = csv.reader(opener.iter_lines())
-        except requests.RequestException, e:
+        except requests.RequestException as e:
             raise PluginError('Unable to get imdb list: %s' % e.message)
 
         # Create an Entry for each movie in the list

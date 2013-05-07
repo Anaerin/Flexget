@@ -1,7 +1,8 @@
+from __future__ import unicode_literals, division, absolute_import
 import urllib2
 import logging
-from plugin_urlrewriting import UrlRewritingError
-from flexget.plugin import *
+from flexget.plugins.plugin_urlrewriting import UrlRewritingError
+from flexget.plugin import register_plugin, internet
 from flexget.utils.tools import urlopener
 from flexget.utils.soup import get_soup
 
@@ -31,7 +32,7 @@ class UrlRewriteBakaBT(object):
         page = urlopener(req, log)
         try:
             soup = get_soup(page)
-        except Exception, e:
+        except Exception as e:
             raise UrlRewritingError(e)
         tag_a = soup.find('a', attrs={'class': 'download_link'})
         if not tag_a:

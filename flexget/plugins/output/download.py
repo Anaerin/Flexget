@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import hashlib
 import logging
 import mimetypes
@@ -128,9 +129,9 @@ class PluginDownload(object):
             # check if entry must have a path (download: yes)
             if require_path and 'path' not in entry:
                 log.error('%s can\'t be downloaded, no path specified for entry' % entry['title'])
-                task.fail(entry, 'no path specified for entry')
+                entry.fail('no path specified for entry')
             else:
-                task.fail(entry, ", ".join(errors))
+                entry.fail(", ".join(errors))
 
     def save_error_page(self, entry, task, page):
         received = os.path.join(task.manager.config_base, 'received', task.name)
@@ -138,11 +139,8 @@ class PluginDownload(object):
             os.makedirs(received)
         filename = os.path.join(received, '%s.error' % entry['title'].encode(sys.getfilesystemencoding(), 'replace'))
         log.error('Error retrieving %s, the error page has been saved to %s' % (entry['title'], filename))
-        outfile = open(filename, 'w')
-        try:
+        with open(filename, 'w') as outfile:
             outfile.write(page)
-        finally:
-            outfile.close()
 
     def get_temp_files(self, task, require_path=False, handle_magnets=False, fail_html=True):
         """Download all task content and store in temporary folder.
@@ -176,28 +174,28 @@ class PluginDownload(object):
                 if not task.manager.unit_test:
                     log.info('Downloading: %s' % entry['title'])
                 self.download_entry(task, entry, url)
-        except RequestException, e:
+        except RequestException as e:
             # TODO: Improve this error message?
             log.warning('RequestException %s' % e)
             return 'Request Exception'
         # TODO: I think these exceptions will not be thrown by requests library.
-        except urllib2.HTTPError, e:
+        except urllib2.HTTPError as e:
             log.warning('HTTPError %s' % e.code)
             return 'HTTP error'
-        except urllib2.URLError, e:
+        except urllib2.URLError as e:
             log.warning('URLError %s' % e.reason)
             return 'URL Error'
-        except BadStatusLine, e:
+        except BadStatusLine as e:
             log.warning('Failed to reach server. Reason: %s' % getattr(e, 'message', 'N/A'))
             return 'BadStatusLine'
-        except IOError, e:
+        except IOError as e:
             if hasattr(e, 'reason'):
                 log.warning('Failed to reach server. Reason: %s' % e.reason)
             elif hasattr(e, 'code'):
                 log.warning('The server couldn\'t fulfill the request. Error code: %s' % e.code)
             log.debug('IOError', exc_info=True)
             return 'IOError'
-        except ValueError, e:
+        except ValueError as e:
             # Probably unknown url type
             msg = 'ValueError %s' % e
             log.warning(msg)
@@ -222,7 +220,7 @@ class PluginDownload(object):
             except:
                 log.warning('Unable to URL-encode URL for `%s`' % entry['title'])
         if not isinstance(url, unicode):
-            url = urllib.quote(url, safe=':/~?=&%')
+            url = urllib.quote(url, safe=b':/~?=&%')
         log.debug('Downloading url \'%s\'' % url)
 
         # get content
@@ -265,7 +263,7 @@ class PluginDownload(object):
             outfile.close()
             # Do a sanity check on downloaded file
             if os.path.getsize(datafile) == 0:
-                task.fail(entry, 'File %s is 0 bytes in size' % datafile)
+                entry.fail('File %s is 0 bytes in size' % datafile)
                 os.remove(datafile)
                 return
             # store temp filename into entry so other plugins may read and modify content
@@ -336,11 +334,11 @@ class PluginDownload(object):
         for entry in task.accepted:
             try:
                 self.output(task, entry, config)
-            except PluginWarning, e:
-                task.fail(entry)
+            except PluginWarning as e:
+                entry.fail()
                 log.error('Plugin error while writing: %s' % e)
-            except Exception, e:
-                task.fail(entry)
+            except Exception as e:
+                entry.fail()
                 log.exception('Exception while writing: %s' % e)
 
     def output(self, task, entry, config):
@@ -367,8 +365,8 @@ class PluginDownload(object):
             # expand variables in path
             try:
                 path = os.path.expanduser(entry.render(path))
-            except RenderError, e:
-                task.fail(entry, 'Could not set path. Error during string replacement: %s' % e)
+            except RenderError as e:
+                entry.fail('Could not set path. Error during string replacement: %s' % e)
                 return
 
             # Clean illegal characters from path name
@@ -430,7 +428,7 @@ class PluginDownload(object):
                     log.debug("Overwriting already existing file %s" % destfile)
                 else:
                     log.info('File `%s` already exists and is not identical, download failed.' % destfile)
-                    task.fail(entry, 'File `%s` already exists and is not identical.' % destfile)
+                    entry.fail('File `%s` already exists and is not identical.' % destfile)
                     return
             else:
                 # move temp file
@@ -438,7 +436,7 @@ class PluginDownload(object):
 
                 try:
                     shutil.move(entry['file'], destfile)
-                except OSError, err:
+                except OSError as err:
                     # ignore permission errors, see ticket #555
                     import errno
                     if not os.path.exists(destfile):

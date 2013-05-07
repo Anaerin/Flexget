@@ -1,9 +1,10 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from sqlalchemy.schema import Index
 from sqlalchemy.sql.expression import desc
 from flexget.event import fire_event
 from flexget.manager import Base
-from flexget.plugin import register_plugin, priority, get_plugin_by_name, PluginError
+from flexget.plugin import register_plugin, get_plugin_by_name, PluginError
 from flexget.utils.log import log_once
 from flexget.utils.titles.movie import MovieParser
 from flexget.utils.tools import parse_timedelta
@@ -96,7 +97,7 @@ class FilterProperMovies(object):
                     if imdb_id is None:
                         continue
                     entry['imdb_id'] = imdb_id
-                except PluginError, pe:
+                except PluginError as pe:
                     log_once(pe.value)
                     continue
 
@@ -139,7 +140,7 @@ class FilterProperMovies(object):
                 # TODO: does this need to be called?
                 # fire_event('forget', entry['imdb_url'])
                 fire_event('forget', entry['imdb_id'])
-                task.accept(entry, 'proper version of previously downloaded movie')
+                entry.accept('proper version of previously downloaded movie')
 
     def on_task_exit(self, task, config):
         """Add downloaded movies to the database"""

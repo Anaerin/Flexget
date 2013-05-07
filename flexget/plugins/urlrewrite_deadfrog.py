@@ -1,7 +1,8 @@
+from __future__ import unicode_literals, division, absolute_import
 import urllib2
 import logging
-from plugin_urlrewriting import UrlRewritingError
-from flexget.plugin import *
+from flexget.plugins.plugin_urlrewriting import UrlRewritingError
+from flexget.plugin import register_plugin, internet
 from flexget.utils.tools import urlopener
 from flexget.utils.soup import get_soup
 import re
@@ -32,7 +33,7 @@ class UrlRewriteDeadFrog(object):
         page = urlopener(req, log)
         try:
             soup = get_soup(page)
-        except Exception, e:
+        except Exception as e:
             raise UrlRewritingError(e)
         down_link = soup.find('a', attrs={'href': re.compile("download/\d+/.*\.torrent")})
         if not down_link:

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import os
 import logging
 import urlparse
@@ -5,12 +6,15 @@ import xml.sax
 import posixpath
 import httplib
 from datetime import datetime
+
 import feedparser
 from requests import RequestException
+
 from flexget.entry import Entry
 from flexget.plugin import register_plugin, internet, PluginError
 from flexget.utils.cached_input import cached
 from flexget.utils.tools import decode_html
+from flexget.utils.pathscrub import pathscrub
 
 log = logging.getLogger('rss')
 
@@ -50,7 +54,8 @@ class InputRSS(object):
         url: <url>
         link: guid
 
-    If you want to keep information in another rss field attached to the flexget entry, you can use the other_fields option.
+    If you want to keep information in another rss field attached to the flexget entry,
+    you can use the other_fields option.
 
     Example::
 
@@ -121,10 +126,10 @@ class InputRSS(object):
         # set default value for group_links as deactivated
         config.setdefault('group_links', False)
         # set default for all_entries
-        config.setdefault('all_entries', False)
+        config.setdefault('all_entries', True)
         return config
 
-    def process_invalid_content(self, task, data):
+    def process_invalid_content(self, task, data, url):
         """If feedparser reports error, save the received data and log error."""
 
         if data is None:
@@ -141,11 +146,15 @@ class InputRSS(object):
         received = os.path.join(task.manager.config_base, 'received')
         if not os.path.isdir(received):
             os.mkdir(received)
-        filename = os.path.join(received, '%s.%s' % (task.name, ext))
-        f = open(filename, 'w')
-        f.write(data)
-        f.close()
-        log.critical('I have saved the invalid content to %s for you to view' % filename)
+        filename = task.name
+        sourcename = urlparse.urlparse(url).netloc
+        if sourcename:
+            filename += '-' + sourcename
+        filename = pathscrub(filename, filename=True)
+        filepath = os.path.join(received, '%s.%s' % (filename, ext))
+        with open(filepath, 'w') as f:
+            f.write(data)
+        log.critical('I have saved the invalid content to %s for you to view' % filepath)
 
     def add_enclosure_info(self, entry, enclosure, filename=True, multiple=False):
         """Stores information from an rss enclosure into an Entry."""
@@ -178,7 +187,8 @@ class InputRSS(object):
 
         # set etag and last modified headers if config has not changed since
         # last run and if caching wasn't disabled with --no-cache argument.
-        all_entries = config['all_entries'] or task.config_modified or task.manager.options.nocache
+        all_entries = (config['all_entries'] or task.config_modified or
+                       task.manager.options.nocache or task.manager.options.retry)
         headers = {}
         if not all_entries:
             etag = task.simple_persistence.get('%s_etag' % url_hash, None)
@@ -203,7 +213,7 @@ class InputRSS(object):
                 # Use the raw response so feedparser can read the headers and status values
                 response = task.requests.get(config['url'], timeout=60, headers=headers, raise_status=False, auth=auth)
                 content = response.content
-            except RequestException, e:
+            except RequestException as e:
                 raise PluginError('Unable to download the RSS for task %s (%s): %s' %
                                   (task.name, config['url'], e))
 
@@ -215,7 +225,7 @@ class InputRSS(object):
                 task.no_entries_ok = True
                 return []
             elif status == 401:
-                raise PluginError('Authentication needed for task %s (%s): %s' %\
+                raise PluginError('Authentication needed for task %s (%s): %s' %
                                   (task.name, config['url'], response.headers['www-authenticate']), log)
             elif status == 404:
                 raise PluginError('RSS Feed %s (%s) not found' % (task.name, config['url']), log)
@@ -230,76 +240,55 @@ class InputRSS(object):
                 if etag:
                     task.simple_persistence['%s_etag' % url_hash] = etag
                     log.debug('etag %s saved for task %s' % (etag, task.name))
-                if  response.headers.get('last-modified'):
+                if response.headers.get('last-modified'):
                     modified = response.headers['last-modified']
                     task.simple_persistence['%s_modified' % url_hash] = modified
                     log.debug('last modified %s saved for task %s' % (modified, task.name))
         else:
             # This is a file, open it
-            content = open(config['url'], 'rb').read()
+            with open(config['url'], 'rb') as f:
+                content = f.read()
 
         if not content:
             log.error('No data recieved for rss feed.')
             return
         try:
             rss = feedparser.parse(content)
-        except LookupError, e:
+        except LookupError as e:
             raise PluginError('Unable to parse the RSS (from %s): %s' % (config['url'], e))
 
         # check for bozo
         ex = rss.get('bozo_exception', False)
-        ignore = False
-        if ex:
-            if isinstance(ex, feedparser.NonXMLContentType):
-                # see: http://www.feedparser.org/docs/character-encoding.html#advanced.encoding.nonxml
-                log.debug('ignoring feedparser.NonXMLContentType')
-                ignore = True
-            elif isinstance(ex, feedparser.CharacterEncodingOverride):
-                # see: ticket 88
-                log.debug('ignoring feedparser.CharacterEncodingOverride')
-                ignore = True
-            elif isinstance(ex, UnicodeEncodeError):
-                if rss.entries:
-                    log.info('Feed has UnicodeEncodeError but seems to produce entries, ignoring the error ...')
-                    ignore = True
-            elif isinstance(ex, xml.sax._exceptions.SAXParseException):
-                if not rss.entries:
+        if ex or rss.get('bozo'):
+            if rss.entries:
+                msg = 'Bozo error %s while parsing feed, but entries were produced, ignoring the error.' % type(ex)
+                if config.get('silent', False):
+                    log.debug(msg)
+                else:
+                    log.verbose(msg)
+            else:
+                if isinstance(ex, feedparser.NonXMLContentType):
+                    # see: http://www.feedparser.org/docs/character-encoding.html#advanced.encoding.nonxml
+                    log.debug('ignoring feedparser.NonXMLContentType')
+                elif isinstance(ex, feedparser.CharacterEncodingOverride):
+                    # see: ticket 88
+                    log.debug('ignoring feedparser.CharacterEncodingOverride')
+                elif isinstance(ex, UnicodeEncodeError):
+                    raise PluginError('Feed has UnicodeEncodeError while parsing...')
+                elif isinstance(ex, (xml.sax._exceptions.SAXParseException, xml.sax._exceptions.SAXException)):
                     # save invalid data for review, this is a bit ugly but users seem to really confused when
                     # html pages (login pages) are received
-                    self.process_invalid_content(task, content)
+                    self.process_invalid_content(task, content, config['url'])
                     if task.manager.options.debug:
                         log.exception(ex)
                     raise PluginError('Received invalid RSS content from task %s (%s)' % (task.name, config['url']))
+                elif isinstance(ex, httplib.BadStatusLine) or isinstance(ex, IOError):
+                    raise ex  # let the @internet decorator handle
                 else:
-                    msg = ('Invalid XML received (%s). However feedparser still produced entries.'
-                           ' Ignoring the error...' % str(ex).replace('<unknown>:', 'line '))
-                    if not config.get('silent', False):
-                        log.info(msg)
-                    else:
-                        log.debug(msg)
-                    ignore = True
-            elif isinstance(ex, httplib.BadStatusLine) or isinstance(ex, IOError):
-                raise ex # let the @internet decorator handle
-            else:
-                # all other bozo errors
-                if not rss.entries:
-                    self.process_invalid_content(task, content)
-                    raise PluginError('Unhandled bozo_exception. Type: %s (task: %s)' %\
+                    # all other bozo errors
+                    self.process_invalid_content(task, content, config['url'])
+                    raise PluginError('Unhandled bozo_exception. Type: %s (task: %s)' %
                                       (ex.__class__.__name__, task.name), log)
-                else:
-                    msg = 'Invalid RSS received. However feedparser still produced entries. Ignoring the error ...'
-                    if not config.get('silent', False):
-                        log.info(msg)
-                    else:
-                        log.debug(msg)
-
-        if 'bozo' in rss:
-            if rss.bozo and not ignore:
-                log.error(rss)
-                log.error('Bozo exception %s on task %s' % (type(ex), task.name))
-                return
-        else:
-            log.warn('feedparser bozo bit missing, feedparser bug? (FlexGet ticket #721)')
 
         log.debug('encoding %s' % rss.encoding)
 

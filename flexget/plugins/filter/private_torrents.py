@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.plugin import register_plugin, priority
 
@@ -39,8 +40,8 @@ class FilterPrivateTorrents(object):
             private = entry['torrent'].private
 
             if not private_torrents and private:
-                task.reject(entry, 'torrent is marked as private', remember=True)
+                entry.reject('torrent is marked as private', remember=True)
             elif private_torrents and not private:
-                task.reject(entry, 'public torrent', remember=True)
+                entry.reject('public torrent', remember=True)
 
 register_plugin(FilterPrivateTorrents, 'private_torrents')

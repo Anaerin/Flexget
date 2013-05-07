@@ -1,11 +1,26 @@
+from __future__ import unicode_literals, division, absolute_import
 from datetime import datetime
 import logging
+
 from sqlalchemy import Column, Integer, Boolean, String, Unicode, DateTime
-from flexget.schema import versioned_base
+
+from flexget import schema
 from flexget.plugin import priority
+from flexget.utils.sqlalchemy_utils import table_add_column
 
 log = logging.getLogger('queue')
-Base = versioned_base('queue', 0)
+Base = schema.versioned_base('queue', 2)
+
+
+@schema.upgrade('queue')
+def upgrade(ver, session):
+    if False:  # ver == 0: disable this, since we don't have a remove column function
+        table_add_column('queue', 'last_emit', DateTime, session)
+        ver = 1
+    if ver < 2:
+        # We don't have a remove column for 'last_emit', do nothing
+        ver = 2
+    return ver
 
 
 class QueuedItem(Base):
@@ -55,7 +70,7 @@ class FilterQueueBase(object):
                 # Accept this entry if it matches a queue item that has not been accepted this run yet
                 if item.immortal:
                     entry['immortal'] = True
-                task.accept(entry, reason='Matches %s queue item: %s' % (item.discriminator, item.title))
+                entry.accept(reason='Matches %s queue item: %s' % (item.discriminator, item.title))
                 # Keep track of entries we accepted, so they can be marked as downloaded on task_exit if successful
                 self.accepted_entries[item.id] = entry
 

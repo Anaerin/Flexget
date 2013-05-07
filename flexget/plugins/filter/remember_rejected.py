@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy import Column, Integer, String, Unicode, DateTime, ForeignKey, and_, Index
@@ -76,7 +77,7 @@ class FilterRememberRejected(object):
     This is enabled when item is rejected with remember=True flag.
 
     Example::
-        task.reject(entry, 'message', remember=True)
+        entry.reject('message', remember=True)
     """
 
     @priority(0)
@@ -98,7 +99,7 @@ class FilterRememberRejected(object):
         elif not task.is_rerun:
             # Delete expired items if this is not a rerun
             deleted = task.session.query(RememberEntry).filter(RememberEntry.task_id == old_task.id).\
-                                                        filter(RememberEntry.expires < datetime.now()).delete()
+                filter(RememberEntry.expires < datetime.now()).delete()
             if deleted:
                 log.debug('%s entries have expired from remember_rejected table.' % deleted)
                 task.config_changed()
@@ -118,8 +119,8 @@ class FilterRememberRejected(object):
                 reject_entry = reject_entries.filter(and_(RememberEntry.title == entry['title'],
                                                           RememberEntry.url == entry['original_url'])).first()
                 if reject_entry:
-                    task.reject(entry, 'Rejected on behalf of %s plugin: %s' %
-                                       (reject_entry.rejected_by, reject_entry.reason))
+                    entry.reject('Rejected on behalf of %s plugin: %s' %
+                        (reject_entry.rejected_by, reject_entry.reason))
 
     def on_entry_reject(self, task, entry, remember=None, remember_time=None, **kwargs):
         # We only remember rejections that specify the remember keyword argument

@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import logging
 from flexget.utils.search import StringComparator
 from flexget.plugin import get_plugins_by_group, PluginWarning, PluginError, \
@@ -90,7 +91,7 @@ class PluginSearch(object):
                         entry['url'] = url
                         found = True
                         break
-                except (PluginError, PluginWarning), pw:
+                except (PluginError, PluginWarning) as pw:
                     log.verbose('Failed: %s' % pw.value)
                     continue
 
@@ -98,7 +99,7 @@ class PluginSearch(object):
             if not found:
                 # If I don't have a URL, doesn't matter if I'm immortal...
                 entry['immortal'] = False
-                task.reject(entry, 'search failed')
+                entry.reject('search failed')
 
 register_plugin(PluginSearch, 'urlrewrite_search', api_ver=2)
 register_plugin(SearchPlugins, '--search-plugins', builtin=True)

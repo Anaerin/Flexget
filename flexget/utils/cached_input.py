@@ -1,3 +1,4 @@
+from __future__ import unicode_literals, division, absolute_import
 import copy
 import logging
 import hashlib
@@ -118,9 +119,9 @@ class cached(object):
                 if self.persist and not task.manager.options.nocache:
                     # Check database cache
                     db_cache = task.session.query(InputCache).filter(InputCache.name == self.name).\
-                                                              filter(InputCache.hash == hash).\
-                                                              filter(InputCache.added > datetime.now() - self.persist).\
-                                                              first()
+                        filter(InputCache.hash == hash).\
+                        filter(InputCache.added > datetime.now() - self.persist).\
+                        first()
                     if db_cache:
                         entries = [Entry(e.entry) for e in db_cache.entries]
                         log.verbose('Restored %s entries from db cache' % len(entries))
@@ -133,11 +134,11 @@ class cached(object):
                 # call input event
                 try:
                     response = func(*args, **kwargs)
-                except PluginError, e:
+                except PluginError as e:
                     # If there was an error producing entries, but we have valid entries in the db cache, return those.
                     if self.persist and not task.manager.options.nocache:
                         db_cache = task.session.query(InputCache).filter(InputCache.name == self.name).\
-                                                                  filter(InputCache.hash == hash).first()
+                            filter(InputCache.hash == hash).first()
                         if db_cache and db_cache.entries:
                             log.error('There was an error during %s input (%s), using cache instead.' %
                                     (self.name, e))
@@ -164,7 +165,7 @@ class cached(object):
                     # Store to database
                     log.debug('Storing cache %s to database.' % cache_name)
                     db_cache = task.session.query(InputCache).filter(InputCache.name == self.name).\
-                                                              filter(InputCache.hash == hash).first()
+                        filter(InputCache.hash == hash).first()
                     if not db_cache:
                         db_cache = InputCache(name=self.name, hash=hash)
                     db_cache.entries = [InputCacheEntry(entry=e) for e in response]
